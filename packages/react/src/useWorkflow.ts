@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { Workflow } from '@workflow-ts/core';
-import { createRuntime, type WorkflowRuntime } from '@workflow-ts/core';
+import { createRuntime } from '@workflow-ts/core';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 /**
  * Hook to use a workflow in a React component.
@@ -39,7 +39,7 @@ export function useWorkflow<P, S, O, R>(
 
   // Dispose on unmount
   useEffect(() => {
-    return () => runtime.dispose();
+    return () => { runtime.dispose(); };
   }, [runtime]);
 
   // Update props when they change
@@ -68,7 +68,7 @@ export interface UseWorkflowOptions<P, O> {
 /**
  * Hook result that includes both rendering and runtime controls
  */
-export interface UseWorkflowResult<P, S, O, R> {
+export interface UseWorkflowResult<P, S, R> {
   /** Current rendering */
   rendering: R;
   /** Current state (for debugging) */
@@ -106,7 +106,7 @@ export interface UseWorkflowResult<P, S, O, R> {
 export function useWorkflowWithState<P, S, O, R>(
   workflow: Workflow<P, S, O, R>,
   options: UseWorkflowOptions<P, O>,
-): UseWorkflowResult<P, S, O, R> {
+): UseWorkflowResult<P, S, R> {
   const onOutputRef = useRef(options.onOutput);
   onOutputRef.current = options.onOutput;
 
@@ -122,7 +122,7 @@ export function useWorkflowWithState<P, S, O, R>(
 
   // Dispose on unmount
   useEffect(() => {
-    return () => runtime.dispose();
+    return () => { runtime.dispose(); };
   }, [runtime]);
 
   // Subscribe to changes
@@ -136,7 +136,7 @@ export function useWorkflowWithState<P, S, O, R>(
     rendering: runtime.getRendering(),
     state: runtime.getState(),
     props: runtime.getProps(),
-    updateProps: (props: P) => runtime.updateProps(props),
+    updateProps: (props: P) => { runtime.updateProps(props); },
     snapshot: () => runtime.snapshot(),
   };
 }

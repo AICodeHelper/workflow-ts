@@ -63,7 +63,7 @@ interface ChildRendering {
   readonly onIncrement: () => void;
 }
 
-type ChildOutput = { readonly type: 'childDone'; readonly value: number };
+interface ChildOutput { readonly type: 'childDone'; readonly value: number }
 
 const childWorkflow: Workflow<number, ChildState, ChildOutput, ChildRendering> = {
   initialState: (props) => ({ value: props }),
@@ -547,7 +547,7 @@ describe('Multiple listeners', () => {
     });
     
     // Should not throw, and second listener should still receive notification
-    expect(() => runtime.getRendering().onIncrement()).not.toThrow();
+    expect(() => { runtime.getRendering().onIncrement(); }).not.toThrow();
     expect(successfulNotifications).toEqual([1]);
     
     unsub1();
@@ -593,7 +593,7 @@ describe('Multiple listeners', () => {
     runtime.dispose();
     
     // After dispose, actions should throw
-    expect(() => runtime.getRendering().onIncrement()).toThrow();
+    expect(() => { runtime.getRendering().onIncrement(); }).toThrow();
     expect(values).toEqual([1, 2]); // No new values
   });
 });
@@ -727,14 +727,14 @@ describe('Disposal cleanup', () => {
     const runtime = createRuntime(counterWorkflow, undefined);
     runtime.dispose();
     
-    expect(() => runtime.updateProps(undefined)).toThrow('Cannot use disposed workflow runtime');
+    expect(() => { runtime.updateProps(undefined); }).toThrow('Cannot use disposed workflow runtime');
   });
 
   it('should throw on send after dispose', () => {
     const runtime = createRuntime(counterWorkflow, undefined);
     runtime.dispose();
     
-    expect(() => runtime.send((s) => ({ count: s.count + 1 }))).toThrow('Cannot use disposed workflow runtime');
+    expect(() => { runtime.send((s) => ({ count: s.count + 1 })); }).toThrow('Cannot use disposed workflow runtime');
   });
 });
 

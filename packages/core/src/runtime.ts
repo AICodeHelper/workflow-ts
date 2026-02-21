@@ -244,13 +244,13 @@ export class WorkflowRuntime<P, S, O, R> {
     key: string,
     handler: (output: W) => Action<S, O>,
   ): void {
-    this.workerManager.startWorker(
+    this.workerManager.startWorker<W>(
       worker,
       key,
-      (output: W) => {
+      (output: W): void => {
         this.handleAction(handler(output));
       },
-      () => {
+      (): void => {
         // Worker completed
       },
     );
@@ -277,9 +277,7 @@ export class WorkflowRuntime<P, S, O, R> {
   private getWorkflowKey(workflow: Workflow<any, any, any, any>): string {
     // Use constructor name or toString as fallback
     const constructor = (workflow as object).constructor;
-    return constructor !== undefined && constructor.name !== ''
-      ? constructor.name
-      : String(workflow);
+    return constructor.name !== '' ? constructor.name : String(workflow);
   }
 }
 

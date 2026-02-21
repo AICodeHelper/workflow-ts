@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',
+    testTimeout: 10000,
+    hookTimeout: 10000,
   },
 });

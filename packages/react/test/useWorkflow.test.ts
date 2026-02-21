@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useWorkflow, useWorkflowWithState } from '../src/useWorkflow';
 import type { Workflow } from '@workflow-ts/core';
+import { describe, expect, it, vi } from 'vitest';
+
+import { useWorkflow, useWorkflowWithState } from '../src/useWorkflow';
+
 
 // ============================================================
 // Test Types
@@ -148,7 +150,7 @@ describe('useWorkflow', () => {
     expect(result.current.count).toBe(1);
 
     // Unmount should not throw
-    expect(() => unmount()).not.toThrow();
+    expect(() => { unmount(); }).not.toThrow();
   });
 });
 
