@@ -1,0 +1,15 @@
+# These owners will be the default owners for everything in the repo.
+*       @AICodeHelper
+
+# Documentation
+/docs/          @AICodeHelper
+README.md       @AICodeHelper
+
+# Core package
+/packages/core/ @AICodeHelper
+
+# React package
+/packages/react/ @AICodeHelper
+
+# CI/CD
+/.github/       @AICodeHelper

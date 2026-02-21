@@ -26,7 +26,10 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r clean",
-    "ci": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+    "ci": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "docs:api": "typedoc --entryPoints packages/core/src/index.ts --entryPoints packages/react/src/index.ts --out docs-dist/api --plugin typedoc-plugin-markdown",
+    "docs:build": "mkdir -p docs-dist && cp -r docs/* docs-dist/ && pnpm docs:api",
+    "docs:serve": "npx serve docs-dist"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -37,6 +40,8 @@
     "eslint-import-resolver-typescript": "^3.6.1",
     "eslint-plugin-import": "^2.29.1",
     "prettier": "^3.2.4",
+    "typedoc": "^0.28.17",
+    "typedoc-plugin-markdown": "^4.10.0",
     "typescript": "^5.3.3"
   }
 }
