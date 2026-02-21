@@ -1,0 +1,71 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement for workflow-ts
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature! Please fill out the sections below to help us understand your idea.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem description
+      description: Is your feature request related to a problem? Please describe it.
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the solution you'd like to see
+      placeholder: "It would be great if workflow-ts could..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: "I considered using X instead, but..."
+
+  - type: input
+    id: package
+    attributes:
+      label: Affected package
+      description: Which package(s) would this affect?
+      placeholder: "@workflow-ts/core"
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example usage
+      description: Show how the new feature would be used
+      render: typescript
+      placeholder: |
+        // Example of how the API might look
+        import { createRuntime } from '@workflow-ts/core';
+        
+        // Your example here
+
+  - type: dropdown
+    id: willing-to-pr
+    attributes:
+      label: Would you be willing to submit a PR for this?
+      options:
+        - "Yes, I'd be happy to submit a PR"
+        - "Maybe, I'd need some guidance"
+        - "No, I'm just suggesting the idea"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the feature request here

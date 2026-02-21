@@ -1,0 +1,98 @@
+name: 🐛 Bug Report
+description: Report a bug to help us improve workflow-ts
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please fill out the sections below to help us understand and fix the issue.
+        
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is
+      placeholder: "When I do X, Y happens instead of Z"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Import `...`
+        2. Create workflow with `...`
+        3. Call `...`
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen
+      placeholder: "I expected the workflow to..."
+    validations:
+      required: true
+
+  - type: input
+    id: package
+    attributes:
+      label: Affected package
+      description: Which package(s) are affected?
+      placeholder: "@workflow-ts/core"
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal reproduction code
+      description: Provide a minimal code example that demonstrates the issue
+      render: typescript
+      placeholder: |
+        import { createRuntime, type Workflow } from '@workflow-ts/core';
+        
+        // Your minimal repro code here
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error messages
+      description: Paste any relevant log output or error messages
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: workflow-ts version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: "20.11.0"
+    validations:
+      required: false
+
+  - type: input
+    id: typescript-version
+    attributes:
+      label: TypeScript version
+      placeholder: "5.3.3"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here
