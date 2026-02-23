@@ -42,6 +42,11 @@ export class WorkflowRuntime<P, S, O, R> {
   private readonly touchedChildren = new Set<string>();
   private disposed = false;
 
+  private outputHandlers = new Map<
+    string,
+    ((output: unknown) => void) | undefined
+  >();
+
   constructor(private readonly config: RuntimeConfig<P, S, O, R>) {
     const restoredState =
       config.snapshot !== undefined
@@ -132,6 +137,7 @@ export class WorkflowRuntime<P, S, O, R> {
     this.workerManager.stopAll();
     this.childRuntimes.forEach((child) => { child.dispose(); });
     this.childRuntimes.clear();
+    this.outputHandlers.clear();
     this.listeners.clear();
   }
 
@@ -209,7 +215,19 @@ export class WorkflowRuntime<P, S, O, R> {
     this.notifyListeners();
   }
 
-  private renderChild<CP, CS, CO, CR>(
+  private updateOutputHandler(key: string, handler?: (output: unknown) => void): void {
+    if (handler === undefined) {
+      this.outputHandlers.delete(key);
+      return;
+    }
+    this.outputHandlers.set(key, handler);
+  }
+
+  private getOutputHandler(key: string): ((output: unknown) => void) | undefined {
+    return this.outputHandlers.get(key);
+  }
+
+private renderChild<CP, CS, CO, CR>(
     workflow: Workflow<CP, CS, CO, CR>,
     props: CP,
     key: string | undefined,
@@ -226,20 +244,27 @@ export class WorkflowRuntime<P, S, O, R> {
       | undefined;
 
     if (child === undefined) {
+      if (handler !== undefined) {
+        this.updateOutputHandler(childKey, (output: CO) => {
+          this.handleAction(handler(output));
+        });
+      }
       child = new WorkflowRuntime<CP, CS, CO, CR>({
         workflow,
         props,
-        onOutput:
-          handler !== undefined
-            ? (output: CO) => {
-                this.handleAction(handler(output));
-              }
-            : undefined,
+        onOutput: (output: CO) => {
+          this.getOutputHandler(childKey)?.(output);
+        },
       });
       this.childRuntimes.set(childKey, child);
     } else {
       // Update props if child already exists - this allows child to react to prop changes
       child.updateProps(props);
+      if (handler !== undefined) {
+        this.updateOutputHandler(childKey, (output: CO) => {
+          this.handleAction(handler(output));
+        });
+      }
     }
 
     return child.getRendering();
