@@ -245,8 +245,8 @@ private renderChild<CP, CS, CO, CR>(
 
     if (child === undefined) {
       if (handler !== undefined) {
-        this.updateOutputHandler(childKey, (output: CO) => {
-          this.handleAction(handler(output));
+        this.updateOutputHandler(childKey, (output) => {
+          this.handleAction(handler(output as CO));
         });
       }
       child = new WorkflowRuntime<CP, CS, CO, CR>({
@@ -261,8 +261,8 @@ private renderChild<CP, CS, CO, CR>(
       // Update props if child already exists - this allows child to react to prop changes
       child.updateProps(props);
       if (handler !== undefined) {
-        this.updateOutputHandler(childKey, (output: CO) => {
-          this.handleAction(handler(output));
+        this.updateOutputHandler(childKey, (output) => {
+          this.handleAction(handler(output as CO));
         });
       }
     }
