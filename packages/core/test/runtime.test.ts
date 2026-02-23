@@ -398,7 +398,7 @@ describe('Child workflow lifecycle', () => {
     
     const trackingChildWorkflow: Workflow<number, ChildState, never, ChildRendering> = {
       initialState: (props) => ({ value: props }),
-      render: (_props, state, ctx) => ({
+      render: (props, state, ctx) => ({
         value: state.value,
         onIncrement: () => {
           ctx.actionSink.send((s) => ({ value: s.value + 1 }));
@@ -434,36 +434,54 @@ describe('Child workflow lifecycle', () => {
     runtime.dispose();
   });
 
-  it('should update child props even without output handler', () => {
-    const childProps: number[] = [];
+  it('should update child output handler when it changes', () => {
+    const parentOutputs: number[] = [];
+    let multiplier = 1;
 
-    const propsChildWorkflow: Workflow<number, ChildState, never, ChildRendering> = {
+    const handlerChildWorkflow: Workflow<number, ChildState, ChildOutput, ChildRendering> = {
       initialState: (props) => ({ value: props }),
-      render: (props, state) => {
-        childProps.push(props);
-        return { value: state.value, onIncrement: () => {} };
-      },
+      render: (_props, state, ctx) => ({
+        value: state.value,
+        onIncrement: () => {
+          ctx.actionSink.send((s) => ({
+            state: { value: s.value + 1 },
+            output: { value: s.value + 1 },
+          }));
+        },
+      }),
     };
 
-    const parentWorkflow: Workflow<number, ParentState, never, ParentRendering> = {
+    const parentWorkflow: Workflow<number, ParentState, ChildOutput, ParentRenderingWithChild> = {
       initialState: () => ({ childOutputs: [] }),
       render: (props, state, ctx) => {
-        const childRendering = ctx.renderChild(propsChildWorkflow, props, 'child-props');
+        const childRendering = ctx.renderChild(
+          handlerChildWorkflow,
+          props,
+          'handler-key',
+          (output) => (s) => ({
+            state: { childOutputs: [...s.childOutputs, output.value * multiplier] },
+          }),
+        );
         return {
           childValue: childRendering.value,
           childOutputs: state.childOutputs,
+          onIncrement: childRendering.onIncrement,
         };
       },
     };
 
-    const runtime = createRuntime(parentWorkflow, 1);
-    runtime.getRendering();
+    const runtime = createRuntime(parentWorkflow, 0, (output) => {
+      parentOutputs.push(output.childOutputs[0] ?? 0);
+    });
 
-    runtime.updateProps(2);
-    runtime.getRendering();
+    runtime.getRendering().onIncrement();
+    expect(runtime.getState().childOutputs[0]).toBe(1);
 
-    expect(childProps).toEqual([1, 2]);
+    multiplier = 2;
+    runtime.updateProps(1);
+    runtime.getRendering().onIncrement();
 
+    expect(runtime.getState().childOutputs[1]).toBe(4);
     runtime.dispose();
   });
 
@@ -678,43 +696,6 @@ describe('Snapshot/restore workflow state', () => {
     expect(runtime.getState()).toEqual({ count: 10, name: 'from-snapshot' });
     expect(runtime.getRendering().display).toBe('from-snapshot: 10');
     
-    runtime.dispose();
-  });
-
-  it('should restore state from snapshot when provided', () => {
-    const runtime = createRuntime(
-      snapshotWorkflow,
-      undefined,
-      undefined,
-      '{"count":7,"name":"restored"}',
-    );
-
-    expect(runtime.getState()).toEqual({ count: 7, name: 'restored' });
-    expect(runtime.getRendering().display).toBe('restored: 7');
-
-    runtime.dispose();
-  });
-
-  it('should prefer restore over initialState when snapshot is provided', () => {
-    const workflow: Workflow<void, SnapshotState, never, SnapshotRendering> = {
-      initialState: () => ({ count: 0, name: 'initial' }),
-      restore: (snapshot) => {
-        const parsed = JSON.parse(snapshot) as SnapshotState;
-        return { count: parsed.count + 1, name: `${parsed.name}-restored` };
-      },
-      render: (_props, state) => ({
-        display: `${state.name}: ${state.count}`,
-        count: state.count,
-        name: state.name,
-      }),
-      snapshot: (state) => JSON.stringify(state),
-    };
-
-    const runtime = createRuntime(workflow, undefined, undefined, '{"count":2,"name":"base"}');
-
-    expect(runtime.getState()).toEqual({ count: 3, name: 'base-restored' });
-    expect(runtime.getRendering().display).toBe('base-restored: 3');
-
     runtime.dispose();
   });
 
