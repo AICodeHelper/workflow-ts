@@ -144,6 +144,14 @@ export class WorkerManager {
   }
 
   /**
+   * Dispose of all workers and resources.
+   * Alias for stopAll() for API consistency.
+   */
+  public dispose(): void {
+    this.stopAll();
+  }
+
+  /**
    * Get keys of all active workers.
    */
   public getActiveWorkerKeys(): readonly string[] {
