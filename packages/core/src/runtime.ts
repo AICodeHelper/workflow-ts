@@ -46,6 +46,8 @@ export class WorkflowRuntime<P, S, O, R> {
     string,
     ((output: unknown) => void) | undefined
   >();
+  private readonly workflowKeyMap = new WeakMap<object, string>();
+  private workflowKeyCounter = 0;
 
   constructor(private readonly config: RuntimeConfig<P, S, O, R>) {
     const restoredState =
@@ -318,11 +320,11 @@ export class WorkflowRuntime<P, S, O, R> {
     }
 
     if (typeof workflow === 'object') {
-      try {
-        return JSON.stringify(workflow);
-      } catch {
-        return Object.prototype.toString.call(workflow);
-      }
+      const existing = this.workflowKeyMap.get(workflow as object);
+      if (existing !== undefined) return existing;
+      const next = `workflow-${this.workflowKeyCounter++}`;
+      this.workflowKeyMap.set(workflow as object, next);
+      return next;
     }
 
     return String(workflow);
