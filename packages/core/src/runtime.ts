@@ -183,23 +183,18 @@ export class WorkflowRuntime<P, S, O, R> {
   }
 
   private createRenderContext(): RenderContext<S, O> {
+    // Capture reference to actual methods to avoid infinite recursion
+    const renderChildFn = this.renderChild.bind(this);
+    const runWorkerFn = this.runWorker.bind(this);
+
     return {
       actionSink: {
         send: (action: Action<S, O>): void => {
           this.handleAction(action);
         },
       },
-      renderChild: <CP, CS, CO, CR>(
-        workflow: Workflow<CP, CS, CO, CR>,
-        props: CP,
-        key?: string,
-        handler?: (output: CO) => Action<S, O>,
-      ): CR => {
-        return this.renderChild(workflow, props, key, handler);
-      },
-      runWorker: <W>(worker: Worker<W>, key: string, handler: (output: W) => Action<S, O>): void => {
-        this.runWorker(worker, key, handler);
-      },
+      renderChild: renderChildFn,
+      runWorker: runWorkerFn,
     };
   }
 
