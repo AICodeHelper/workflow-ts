@@ -118,7 +118,22 @@ export class WorkflowRuntime<P, S, O, R> {
   }
 
   /**
-   * Get a snapshot of the current state.
+   * Dispose the runtime and stop all workers.
+   */
+  public dispose(): void {
+    if (this.disposed) return;
+
+    this.disposed = true;
+    this.workerManager.dispose();
+    this.listeners.clear();
+    this.childRuntimes.forEach((child) => { child.dispose(); });
+    this.childRuntimes.clear();
+    this.touchedChildren.clear();
+    this.cachedRendering = null;
+  }
+
+  /**
+   * Snapshot the current state, if supported.
    */
   public snapshot(): string | undefined {
     if (this.config.workflow.snapshot !== undefined) {
@@ -127,23 +142,6 @@ export class WorkflowRuntime<P, S, O, R> {
     return undefined;
   }
 
-  /**
-   * Dispose of this runtime and all children.
-   */
-  public dispose(): void {
-    if (this.disposed) return;
-    this.disposed = true;
-
-    this.workerManager.stopAll();
-    this.childRuntimes.forEach((child) => { child.dispose(); });
-    this.childRuntimes.clear();
-    this.outputHandlers.clear();
-    this.listeners.clear();
-  }
-
-  /**
-   * Check if the runtime has been disposed.
-   */
   public isDisposed(): boolean {
     return this.disposed;
   }
@@ -227,7 +225,7 @@ export class WorkflowRuntime<P, S, O, R> {
     return this.outputHandlers.get(key);
   }
 
-private renderChild<CP, CS, CO, CR>(
+  private renderChild<CP, CS, CO, CR>(
     workflow: Workflow<CP, CS, CO, CR>,
     props: CP,
     key: string | undefined,
@@ -338,6 +336,11 @@ private renderChild<CP, CS, CO, CR>(
 /**
  * Create a workflow runtime.
  *
+ * @param workflow - Workflow definition
+ * @param props - Initial props
+ * @param onOutput - Optional output handler
+ * @returns New workflow runtime
+ *
  * @example
  * ```typescript
  * const runtime = createRuntime(myWorkflow, { initialValue: 0 });
@@ -351,8 +354,12 @@ private renderChild<CP, CS, CO, CR>(
 export function createRuntime<P, S, O, R>(
   workflow: Workflow<P, S, O, R>,
   props: P,
-  onOutput?: (output: O) => void,
-  snapshot?: string,
+  configOrOnOutput?: Partial<RuntimeConfig<P, S, O, R>> | ((output: O) => void),
 ): WorkflowRuntime<P, S, O, R> {
-  return new WorkflowRuntime({ workflow, props, onOutput, snapshot });
+  // Handle backwards compatibility: if configOrOnOutput is a function, treat it as onOutput
+  const config: Partial<RuntimeConfig<P, S, O, R>> =
+    typeof configOrOnOutput === 'function'
+      ? { onOutput: configOrOnOutput }
+      : (configOrOnOutput ?? {});
+  return new WorkflowRuntime({ ...config, workflow, props });
 }
