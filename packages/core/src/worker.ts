@@ -211,11 +211,7 @@ export function fromPromise<T>(key: string, factory: () => Promise<T>): Worker<T
     if (signal.aborted) {
       throw new DOMException('Aborted', 'AbortError');
     }
-    const result = await factory();
-    if (signal.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-    return result;
+    return factory();
   });
 }
 
@@ -264,6 +260,7 @@ export function debounceWorker<T>(key: string, worker: Worker<T>, delayMs: numbe
       });
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (signal.aborted) {
       throw new DOMException('Aborted', 'AbortError');
     }
