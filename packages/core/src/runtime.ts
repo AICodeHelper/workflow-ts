@@ -21,8 +21,10 @@ export type DebugLogger = (level: LogLevel, message: string, data?: unknown) => 
 const defaultLogger: DebugLogger = (level, message, data) => {
   const prefix = '[workflow-ts]';
   if (data !== undefined) {
+    // eslint-disable-next-line no-console
     console[level](`${prefix} ${message}`, data);
   } else {
+    // eslint-disable-next-line no-console
     console[level](`${prefix} ${message}`);
   }
 };

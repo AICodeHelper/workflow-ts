@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { createRuntime } from '@workflow-ts/core';
+import { describe, expect, it } from 'vitest';
+
 import { counterWorkflow } from '../src/workflow';
 
 describe('Counter Workflow', () => {
