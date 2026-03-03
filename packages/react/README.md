@@ -8,6 +8,31 @@ React hooks for workflow-ts.
 pnpm add @workflow-ts/react @workflow-ts/core
 ```
 
+## Recommended Architecture
+
+Use workflow-ts as a rendering subscription + mapping system:
+
+1. Subscribe to workflow rendering with `useWorkflow`.
+2. Map that rendering tree to React components.
+
+```tsx
+import { useWorkflow } from '@workflow-ts/react';
+
+function AppScreen({ userId }: { userId: string }) {
+  const rendering = useWorkflow(appWorkflow, { userId });
+  return <AppRenderer rendering={rendering} />;
+}
+```
+
+This keeps workflow logic inside workflows and keeps React focused on rendering.
+
+## Performance
+
+- Preferred setup: React Compiler enabled in the consuming app.
+- With React Compiler, manual `React.memo` is usually unnecessary.
+- Keep props/rendering references stable to minimize work.
+- Runtime prop updates use `Object.is`; passing the same prop reference does not emit an update.
+
 ## Hooks
 
 ### `useWorkflow(workflow, props, onOutput?, options?)`
@@ -25,9 +50,9 @@ const counterWorkflow: Workflow<void, State, never, Rendering> = {
 function Counter() {
   const { count, onIncrement, onDecrement } = useWorkflow(
     counterWorkflow,
-    undefined  // props
+    undefined, // props
   );
-  
+
   return (
     <div>
       <span>{count}</span>
@@ -39,12 +64,14 @@ function Counter() {
 ```
 
 **Parameters:**
+
 - `workflow` - The workflow definition
 - `props` - Props to pass to the workflow
 - `onOutput?` - Optional callback for workflow outputs
 - `options?` - Optional hook options
 
 **Options:**
+
 - `resetOnWorkflowChange?: boolean` - Recreate runtime when workflow identity changes (opt-in). Defaults to `false`. To hard-reset in React, consider using a component `key`.
 
 **Returns:** The current rendering (type `R` from workflow)
@@ -57,22 +84,18 @@ Like `useWorkflow`, but also exposes runtime controls.
 import { useWorkflowWithState } from '@workflow-ts/react';
 
 function SearchComponent() {
-  const { rendering, state, updateProps, snapshot } = useWorkflowWithState(
-    searchWorkflow,
-    {
-      props: { query: '' },
-      onOutput: (output) => console.log('Output:', output),
-    }
-  );
-  
+  const { rendering, state, updateProps, snapshot } = useWorkflowWithState(searchWorkflow, {
+    props: { query: '' },
+    onOutput: (output) => console.log('Output:', output),
+  });
+
   return (
     <div>
-      <input
-        value={state.query}
-        onChange={(e) => updateProps({ query: e.target.value })}
-      />
+      <input value={state.query} onChange={(e) => updateProps({ query: e.target.value })} />
       <ul>
-        {rendering.results.map(r => <li key={r.id}>{r.name}</li>)}
+        {rendering.results.map((r) => (
+          <li key={r.id}>{r.name}</li>
+        ))}
       </ul>
     </div>
   );
@@ -80,11 +103,13 @@ function SearchComponent() {
 ```
 
 **Options:**
+
 - `props: P` - Initial props
 - `onOutput?: (output: O) => void` - Output callback
 - `resetOnWorkflowChange?: boolean` - Recreate runtime when workflow identity changes (opt-in). Defaults to `false`.
 
 **Returns:**
+
 - `rendering: R` - Current rendering
 - `state: S` - Current state (for debugging)
 - `props: P` - Current props
@@ -117,14 +142,14 @@ const loadUsersWorker = createWorker('load-users', async (signal) => {
 
 const usersWorkflow: Workflow<void, State, never, Rendering> = {
   initialState: () => ({ type: 'idle' }),
-  
+
   render: (_props, state, ctx) => {
     if (state.type === 'loading') {
       ctx.runWorker(loadUsersWorker, 'load', (users) => () => ({
         state: { type: 'success', users },
       }));
     }
-    
+
     return {
       isLoading: state.type === 'loading',
       users: state.type === 'success' ? state.users : [],
@@ -136,17 +161,19 @@ const usersWorkflow: Workflow<void, State, never, Rendering> = {
 
 function UserList() {
   const { isLoading, users, error, load } = useWorkflow(usersWorkflow, undefined);
-  
+
   useEffect(() => {
     load();
   }, []);
-  
+
   if (isLoading) return <Spinner />;
   if (error) return <Error message={error} />;
-  
+
   return (
     <ul>
-      {users.map(user => <li key={user.id}>{user.name}</li>)}
+      {users.map((user) => (
+        <li key={user.id}>{user.name}</li>
+      ))}
     </ul>
   );
 }
@@ -160,13 +187,13 @@ import { useWorkflow } from '@workflow-ts/react';
 // Workflow that derives state from props
 const searchWorkflow: Workflow<{ query: string }, State, never, Rendering> = {
   initialState: (props) => ({ query: props.query, results: [] }),
-  
+
   render: (props, state, ctx) => {
     // Update state when props change
     if (props.query !== state.query) {
       ctx.actionSink.send((s) => ({ state: { ...s, query: props.query } }));
     }
-    
+
     return {
       query: state.query,
       results: state.results,
@@ -177,12 +204,14 @@ const searchWorkflow: Workflow<{ query: string }, State, never, Rendering> = {
 function Search() {
   const [input, setInput] = useState('');
   const { results } = useWorkflow(searchWorkflow, { query: input });
-  
+
   return (
     <div>
       <input value={input} onChange={(e) => setInput(e.target.value)} />
       <ul>
-        {results.map(r => <li key={r.id}>{r.name}</li>)}
+        {results.map((r) => (
+          <li key={r.id}>{r.name}</li>
+        ))}
       </ul>
     </div>
   );
@@ -197,11 +226,11 @@ import { useWorkflow } from '@workflow-ts/react';
 
 test('counter increments', () => {
   render(<Counter />);
-  
+
   expect(screen.getByText('0')).toBeInTheDocument();
-  
+
   fireEvent.click(screen.getByText('+'));
-  
+
   expect(screen.getByText('1')).toBeInTheDocument();
 });
 ```

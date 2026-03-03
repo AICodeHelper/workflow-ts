@@ -78,10 +78,7 @@ export class WorkflowRuntime<P, S, O, R> {
   private isProcessingActions = false;
   private readonly actionQueue: Action<S, O>[] = [];
 
-  private outputHandlers = new Map<
-    string,
-    ((output: unknown) => void) | undefined
-  >();
+  private outputHandlers = new Map<string, ((output: unknown) => void) | undefined>();
   /** Type-safe output handlers for specific output types */
   private readonly typedOutputHandlers = new Map<string, Set<(output: unknown) => void>>();
   private readonly workflowKeyMap = new WeakMap<object, string>();
@@ -102,7 +99,7 @@ export class WorkflowRuntime<P, S, O, R> {
     const restoredState =
       config.snapshot !== undefined
         ? (config.workflow.restore?.(config.snapshot) ??
-            config.workflow.initialState(config.props, config.snapshot))
+          config.workflow.initialState(config.props, config.snapshot))
         : undefined;
 
     this.state = config.initialState ?? restoredState ?? config.workflow.initialState(config.props);
@@ -156,6 +153,9 @@ export class WorkflowRuntime<P, S, O, R> {
    */
   public updateProps(props: P): void {
     this.assertNotDisposed();
+    if (Object.is(this.currentProps, props)) {
+      return;
+    }
     this.currentProps = props;
     this.cachedRendering = null;
     this.notifyListeners();
@@ -442,9 +442,7 @@ export class WorkflowRuntime<P, S, O, R> {
     this.touchedChildren.add(childKey);
 
     // Get or create child runtime
-    let child = this.childRuntimes.get(childKey) as
-      | WorkflowRuntime<CP, CS, CO, CR>
-      | undefined;
+    let child = this.childRuntimes.get(childKey) as WorkflowRuntime<CP, CS, CO, CR> | undefined;
 
     if (child === undefined) {
       if (handler !== undefined) {
@@ -475,11 +473,7 @@ export class WorkflowRuntime<P, S, O, R> {
     return child.getRendering();
   }
 
-  private runWorker<W>(
-    worker: Worker<W>,
-    key: string,
-    handler: (output: W) => Action<S, O>,
-  ): void {
+  private runWorker<W>(worker: Worker<W>, key: string, handler: (output: W) => Action<S, O>): void {
     if (!this.workerManager.isInRenderCycle) {
       console.warn(
         'runWorker was called outside of render; workers started here may be stopped unexpectedly.',
