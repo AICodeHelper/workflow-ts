@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
  * );
  * ```
  */
-export interface UseWorkflowHookOptions {
+export interface UseWorkflowHookOptions<O> {
   /** Reset runtime when workflow identity changes (opt-in) */
   resetOnWorkflowChange?: boolean;
   /** Optional handlers for specific output types */
@@ -35,7 +35,7 @@ export function useWorkflow<P, S, O, R>(
   workflow: Workflow<P, S, O, R>,
   props: P,
   onOutput?: (output: O) => void,
-  options?: UseWorkflowHookOptions,
+  options?: UseWorkflowHookOptions<O>,
 ): R {
   const onOutputRef = useRef(onOutput);
   onOutputRef.current = onOutput;
@@ -46,7 +46,7 @@ export function useWorkflow<P, S, O, R>(
   const runtime = useMemo(() => {
     const rt = createRuntime(workflow, props, { onOutput: (output: O) => {
       onOutputRef.current?.(output);
-    }});
+    }}) as any;
 
     // Register typed output handlers
     const handlers = outputHandlersRef.current;
@@ -145,7 +145,7 @@ export function useWorkflowWithState<P, S, O, R>(
   const runtime = useMemo(() => {
     const rt = createRuntime(workflow, options.props, { onOutput: (output: O) => {
       onOutputRef.current?.(output);
-    }});
+    }}) as any;
 
     // Register typed output handlers
     const handlers = outputHandlersRef.current;
