@@ -6,9 +6,9 @@ A TypeScript implementation of Square's [Workflow architecture](https://develope
 
 ## Packages
 
-| Package | Description |
-|---------|-------------|
-| [`@workflow-ts/core`](./packages/core) | Core workflow runtime and types |
+| Package                                  | Description                          |
+| ---------------------------------------- | ------------------------------------ |
+| [`@workflow-ts/core`](./packages/core)   | Core workflow runtime and types      |
 | [`@workflow-ts/react`](./packages/react) | React hooks for workflow integration |
 
 ## Features
@@ -57,17 +57,17 @@ type Output = { type: 'loaded'; data: string };
 // 4. Implement the workflow
 const dataWorkflow: Workflow<void, State, Output, Rendering> = {
   initialState: () => ({ type: 'idle' }),
-  
+
   render: (_props, state, ctx) => ({
     status: state.type,
     data: state.type === 'loaded' ? state.data : undefined,
     error: state.type === 'error' ? state.message : undefined,
-    
+
     load: () => {
       ctx.actionSink.send(() => ({ state: { type: 'loading' } }));
       // Worker handles async (see Workers section)
     },
-    
+
     retry: () => {
       ctx.actionSink.send(() => ({ state: { type: 'idle' } }));
     },
@@ -80,16 +80,22 @@ const dataWorkflow: Workflow<void, State, Output, Rendering> = {
 ```tsx
 import { useWorkflow } from '@workflow-ts/react';
 
-function DataComponent() {
-  const { status, data, error, load, retry } = useWorkflow(dataWorkflow, undefined);
-  
-  if (status === 'loading') return <Spinner />;
-  if (status === 'error') return <Error message={error} onRetry={retry} />;
-  if (status === 'loaded') return <DataDisplay data={data} />;
-  
-  return <button onClick={load}>Load Data</button>;
+function DataScreen() {
+  const rendering = useWorkflow(dataWorkflow, undefined);
+  return <DataRenderer rendering={rendering} />;
+}
+
+function DataRenderer({ rendering }: { rendering: Rendering }) {
+  if (rendering.status === 'loading') return <Spinner />;
+  if (rendering.status === 'error')
+    return <Error message={rendering.error} onRetry={rendering.retry} />;
+  if (rendering.status === 'loaded') return <DataDisplay data={rendering.data} />;
+  return <button onClick={rendering.load}>Load Data</button>;
 }
 ```
+
+Preferred architecture is subscribe to a workflow rendering, then map rendering data to React components.
+With React Compiler enabled, manual `React.memo` is usually unnecessary.
 
 ### Test Without UI
 
@@ -98,17 +104,17 @@ import { createRuntime } from '@workflow-ts/core';
 
 test('loads data successfully', async () => {
   const runtime = createRuntime(dataWorkflow, undefined);
-  
+
   expect(runtime.getRendering().status).toBe('idle');
-  
+
   // Simulate user action
   runtime.getRendering().load();
   expect(runtime.getRendering().status).toBe('loading');
-  
+
   // Simulate async completion (or use real workers in tests)
   runtime.send(() => ({ state: { type: 'loaded', data: 'test' } }));
   expect(runtime.getRendering().status).toBe('loaded');
-  
+
   runtime.dispose();
 });
 ```
@@ -198,14 +204,14 @@ See the [`examples/`](./examples) directory:
 
 ## Comparison
 
-| Feature | workflow-ts | Redux | XState | TCA (Swift) |
-|---------|-------------|-------|--------|-------------|
-| State machine explicit | ✅ | ❌ | ✅ | ✅ |
-| Zero boilerplate | ✅ | ❌ | ⚠️ | ✅ |
-| Async built-in | ✅ | ❌ (middleware) | ⚠️ (services) | ✅ |
-| Framework agnostic | ✅ | ✅ | ✅ | ❌ |
-| First-class composition | ✅ | ⚠️ | ⚠️ | ✅ |
-| TypeScript native | ✅ | ⚠️ | ✅ | ❌ |
+| Feature                 | workflow-ts | Redux           | XState        | TCA (Swift) |
+| ----------------------- | ----------- | --------------- | ------------- | ----------- |
+| State machine explicit  | ✅          | ❌              | ✅            | ✅          |
+| Zero boilerplate        | ✅          | ❌              | ⚠️            | ✅          |
+| Async built-in          | ✅          | ❌ (middleware) | ⚠️ (services) | ✅          |
+| Framework agnostic      | ✅          | ✅              | ✅            | ❌          |
+| First-class composition | ✅          | ⚠️              | ⚠️            | ✅          |
+| TypeScript native       | ✅          | ⚠️              | ✅            | ❌          |
 
 ## Development
 
