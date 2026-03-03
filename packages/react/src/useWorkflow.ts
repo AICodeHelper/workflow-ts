@@ -54,10 +54,10 @@ export function useWorkflow<P, S, O, R>(
     const handlers = outputHandlersRef.current;
     if (!handlers) return;
 
-    const unsubscribes: Array<() => void> = [];
+    const unsubscribes: (() => void)[] = [];
     Object.entries(handlers).forEach(([type, handler]) => {
       if (handler) {
-        const unsubscribe = runtime.on(type as any, handler as any);
+        const unsubscribe = runtime.on(type as any, handler as any) as () => void;
         unsubscribes.push(unsubscribe);
       }
     });
@@ -159,10 +159,10 @@ export function useWorkflowWithState<P, S, O, R>(
     const handlers = outputHandlersRef.current;
     if (!handlers) return;
 
-    const unsubscribes: Array<() => void> = [];
+    const unsubscribes: (() => void)[] = [];
     Object.entries(handlers).forEach(([type, handler]) => {
       if (handler) {
-        const unsubscribe = runtime.on(type as any, handler as any);
+        const unsubscribe = runtime.on(type as any, handler as any) as () => void;
         unsubscribes.push(unsubscribe);
       }
     });
