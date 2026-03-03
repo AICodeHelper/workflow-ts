@@ -939,7 +939,7 @@ describe('Output type subscription', () => {
       loadedOutputs.push(output);
     });
     runtime.on('loaded', (output) => {
-      loadedOutputs.push({ ...output, data: output.data + '-2' });
+      loadedOutputs.push({ ...output, data: `${output.data  }-2` });
     });
 
     runtime.getRendering().emitLoaded();
