@@ -314,7 +314,7 @@ export class WorkflowRuntime<P, S, O, R> {
   }
 
   private handleAction(action: Action<S, O>): void {
-    this.assertNotDisposed();
+    if (this.disposed) return;  // Silently ignore actions after disposal
 
     if (this.isRendering || this.isProcessingActions) {
       this.actionQueue.push(action);
@@ -489,7 +489,7 @@ export class WorkflowRuntime<P, S, O, R> {
         this.handleAction(handler(output));
       },
       (): void => {
-        // Worker completed
+        if (this.disposed) return;  // Add this check
         this.debug?.('log', 'Worker finished', { worker: key });
       },
     );
