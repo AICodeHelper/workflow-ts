@@ -240,7 +240,7 @@ export class WorkflowRuntime<P, S, O, R> {
     handlers.add(wrappedHandler);
 
     return () => {
-      handlers?.delete(wrappedHandler);
+      handlers.delete(wrappedHandler);
     };
   }
 

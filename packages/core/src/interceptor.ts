@@ -144,7 +144,7 @@ export function loggingInterceptor<S, O>(
   };
 
   if (logResults) {
-    config.onResult = (action, result, _ctx) => {
+    config.onResult = (action, result) => {
       logger.log(`${prefix} Action completed:`, String(action));
       if (logState) {
         logger.log(`${prefix} New State:`, result.state);

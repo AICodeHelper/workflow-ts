@@ -11,6 +11,12 @@ import {
   type Worker,
   WorkflowRuntime,
 } from '../src';
+import {
+  composeInterceptors,
+  createInterceptor,
+  debugInterceptor,
+  loggingInterceptor,
+} from '../src/interceptor';
 
 // ============================================================
 // Test Types
@@ -1261,13 +1267,6 @@ describe('action helpers', () => {
 // ============================================================
 // Interceptor Tests
 // ============================================================
-
-import {
-  createInterceptor,
-  loggingInterceptor,
-  debugInterceptor,
-  composeInterceptors,
-} from '../src/interceptor';
 
 describe('Interceptors', () => {
   describe('createInterceptor', () => {
