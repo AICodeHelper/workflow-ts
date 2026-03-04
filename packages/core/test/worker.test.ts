@@ -396,7 +396,7 @@ describe('Disposal reentrancy (regression: "Cannot use disposed workflow runtime
     const consoleErrors: unknown[][] = [];
     vi.spyOn(console, 'error').mockImplementation((...args) => consoleErrors.push(args));
 
-    type Output = { type: 'done' };
+    interface Output { type: 'done' }
     const worker = createWorker('test', async () => 'result');
 
     const workflow: Workflow<void, { count: number }, Output, { count: number }> = {
