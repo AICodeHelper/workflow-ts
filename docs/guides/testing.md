@@ -87,13 +87,15 @@ runtime.dispose();
 This is best when you want to verify real worker wiring and lifecycle.
 
 ```ts
-const runtime = createRuntime(workflowWithWorker, undefined);
-runtime.getRendering().start();
+it('loads data through worker', async () => {
+  const runtime = createRuntime(workflowWithWorker, undefined);
+  runtime.getRendering().start();
 
-await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
-expect(runtime.getRendering().status).toBe('loaded');
-runtime.dispose();
+  expect(runtime.getRendering().status).toBe('loaded');
+  runtime.dispose();
+});
 ```
 
 ### Approach 2: simulate completion with `runtime.send(...)`
