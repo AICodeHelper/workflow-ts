@@ -53,15 +53,15 @@ export function useWorkflow<P, S, O, R>(
     if (!handlers) return;
 
     const unsubscribes: (() => void)[] = [];
-    
-    // Type-safe iteration over output handlers
-    // Object.entries loses type information, so we need to cast the type and handler
+
+    // Object.entries loses type correlation between key and handler, so we cast.
+    // When K is inferred as the full OutputType union, Extract<O, { type: OutputType }>
+    // resolves to all of O — every handler appears to accept all variants. This is
+    // unavoidable with Object.entries but safe: outputHandlers is typed to only allow
+    // valid pairs, and runtime.on only calls each handler with its matching output type.
     type OutputType = O extends { type: string } ? O['type'] : never;
-    
     for (const [type, handler] of Object.entries(handlers)) {
       if (handler) {
-        // Cast type to OutputType and handler to the expected signature
-        // This is safe because outputHandlers is typed to only allow valid type/handler pairs
         const unsubscribe = runtime.on(
           type as OutputType,
           handler as (output: Extract<O, { type: OutputType }>) => void
@@ -166,15 +166,15 @@ export function useWorkflowWithState<P, S, O, R>(
     if (!handlers) return;
 
     const unsubscribes: (() => void)[] = [];
-    
-    // Type-safe iteration over output handlers
-    // Object.entries loses type information, so we need to cast the type and handler
+
+    // Object.entries loses type correlation between key and handler, so we cast.
+    // When K is inferred as the full OutputType union, Extract<O, { type: OutputType }>
+    // resolves to all of O — every handler appears to accept all variants. This is
+    // unavoidable with Object.entries but safe: outputHandlers is typed to only allow
+    // valid pairs, and runtime.on only calls each handler with its matching output type.
     type OutputType = O extends { type: string } ? O['type'] : never;
-    
     for (const [type, handler] of Object.entries(handlers)) {
       if (handler) {
-        // Cast type to OutputType and handler to the expected signature
-        // This is safe because outputHandlers is typed to only allow valid type/handler pairs
         const unsubscribe = runtime.on(
           type as OutputType,
           handler as (output: Extract<O, { type: OutputType }>) => void
