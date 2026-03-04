@@ -22,7 +22,7 @@ export const counterWorkflow: Workflow<void, State, Output, Rendering> = {
   initialState: () => ({ count: 0 }),
   
   render: (_props, state, ctx) => {
-    const increment = () => {
+    const increment = (): void => {
       ctx.actionSink.send((s) => {
         const newCount = Math.min(s.count + 1, MAX_COUNT);
         return {
@@ -32,7 +32,7 @@ export const counterWorkflow: Workflow<void, State, Output, Rendering> = {
       });
     };
 
-    const decrement = () => {
+    const decrement = (): void => {
       ctx.actionSink.send((s) => {
         const newCount = Math.max(s.count - 1, 0);
         return {
@@ -42,7 +42,7 @@ export const counterWorkflow: Workflow<void, State, Output, Rendering> = {
       });
     };
 
-    const reset = () => {
+    const reset = (): void => {
       ctx.actionSink.send(action(() => ({ count: 0 })));
     };
 
