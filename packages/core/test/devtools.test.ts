@@ -155,6 +155,7 @@ describe('DevTools', () => {
     };
 
     it('should log init event', () => {
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       const devTools = createDevTools<CounterState, void, { count: number }>();
       const runtime = createRuntime(counterWorkflow, undefined, { devTools });
 
@@ -167,6 +168,7 @@ describe('DevTools', () => {
     });
 
     it('should log action events', () => {
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       const devTools = createDevTools<CounterState, void, { count: number }>();
       const runtime = createRuntime(counterWorkflow, undefined, { devTools });
 
@@ -187,6 +189,7 @@ describe('DevTools', () => {
     });
 
     it('should log render events', () => {
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       const devTools = createDevTools<CounterState, void, { count: number }>();
       const runtime = createRuntime(counterWorkflow, undefined, { devTools });
 
@@ -204,6 +207,7 @@ describe('DevTools', () => {
     });
 
     it('should track state history', () => {
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       const devTools = createDevTools<CounterState, void, { count: number }>({
         enableTimeTravel: true,
       });
@@ -232,6 +236,7 @@ describe('DevTools', () => {
         render: (props, state) => ({ value: props.value }),
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
       const devTools = createDevTools<State, void, { value: number }>();
       const runtime = createRuntime(workflow, { value: 1 }, { devTools });
 
