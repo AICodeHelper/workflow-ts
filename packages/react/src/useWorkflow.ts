@@ -168,6 +168,15 @@ export function useWorkflow<P, S, O, R>(
     }
 
     return () => {
+      // If this effect is cleaning up a runtime that has already been replaced,
+      // dispose immediately to avoid one-tick stale runtime activity.
+      if (runtimeRef.current !== runtime) {
+        cancelPendingDispose(runtime);
+        if (!runtime.isDisposed()) {
+          runtime.dispose();
+        }
+        return;
+      }
       scheduleDispose(runtime);
     };
   }, [runtime, shouldBeActive, scheduleDispose, cancelPendingDispose]);
@@ -437,6 +446,15 @@ export function useWorkflowWithState<P, S, O, R>(
     }
 
     return () => {
+      // If this effect is cleaning up a runtime that has already been replaced,
+      // dispose immediately to avoid one-tick stale runtime activity.
+      if (runtimeRef.current !== runtime) {
+        cancelPendingDispose(runtime);
+        if (!runtime.isDisposed()) {
+          runtime.dispose();
+        }
+        return;
+      }
       scheduleDispose(runtime);
     };
   }, [runtime, shouldBeActive, scheduleDispose, cancelPendingDispose, createResultSnapshot]);

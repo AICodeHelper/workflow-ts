@@ -270,6 +270,65 @@ describe('useWorkflow', () => {
     unmount();
   });
 
+  it('should dispose replaced runtime synchronously to prevent stale outputs', () => {
+    interface OutputState {
+      readonly count: number;
+    }
+    interface WorkflowOutput {
+      readonly type: 'tick';
+      readonly source: string;
+      readonly count: number;
+    }
+    interface OutputRendering {
+      readonly source: string;
+      readonly count: number;
+      readonly increment: () => void;
+    }
+
+    const createOutputWorkflow = (source: string): Workflow<void, OutputState, WorkflowOutput, OutputRendering> => ({
+      initialState: () => ({ count: 0 }),
+      render: (_props, state, ctx) => ({
+        source,
+        count: state.count,
+        increment: () => {
+          ctx.actionSink.send((s) => {
+            const nextCount = s.count + 1;
+            return {
+              state: { count: nextCount },
+              output: { type: 'tick', source, count: nextCount } as const,
+            };
+          });
+        },
+      }),
+    });
+
+    const workflowA = createOutputWorkflow('A');
+    const workflowB = createOutputWorkflow('B');
+    const onOutput = vi.fn();
+
+    const { result, rerender, unmount } = renderHook(
+      ({ workflow }) =>
+        useWorkflow(workflow, undefined, onOutput, { resetOnWorkflowChange: true }),
+      { initialProps: { workflow: workflowA } },
+    );
+
+    const incrementFromOldRuntime = result.current.increment;
+    rerender({ workflow: workflowB });
+
+    act(() => {
+      incrementFromOldRuntime();
+    });
+    expect(onOutput).toHaveBeenCalledTimes(0);
+
+    act(() => {
+      result.current.increment();
+    });
+    expect(onOutput).toHaveBeenCalledTimes(1);
+    expect(onOutput).toHaveBeenLastCalledWith({ type: 'tick', source: 'B', count: 1 });
+
+    unmount();
+  });
+
   it('should keep runtime when workflow identity changes and resetOnWorkflowChange is false', () => {
     interface StableState {
       readonly count: number;
