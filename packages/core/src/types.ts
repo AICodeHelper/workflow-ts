@@ -141,7 +141,7 @@ export interface Workflow<P, S, O, R> {
 
   /**
    * Render the current state into a rendering.
-   * Called after every state change.
+   * Called after every state change or props update.
    *
    * @param props - Current props
    * @param state - Current state
@@ -149,6 +149,17 @@ export interface Workflow<P, S, O, R> {
    * @returns The rendering
    */
   readonly render: (props: P, state: S, context: RenderContext<S, O>) => R;
+
+  /**
+   * Optional: Called immediately before render when props change.
+   * Allows state updates derived from new props.
+   *
+   * @param oldProps - The previously rendered props
+   * @param newProps - The next props to render
+   * @param state - Current state before rendering with new props
+   * @returns The state that should be rendered
+   */
+  readonly onPropsChanged?: (oldProps: P, newProps: P, state: S) => S;
 
   /**
    * Optional: Serialize state to a string for persistence.

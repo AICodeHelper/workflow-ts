@@ -74,4 +74,20 @@ describe('createStatefulWorkflow', () => {
     builtRuntime.dispose();
     literalRuntime.dispose();
   });
+
+  it('forwards onPropsChanged from config', () => {
+    const workflow = createStatefulWorkflow<{ value: number }, { value: number }, never, { value: number }>({
+      initialState: (props) => ({ value: props.value }),
+      onPropsChanged: (_oldProps, newProps) => ({ value: newProps.value * 2 }),
+      render: (_props, state) => ({ value: state.value }),
+    });
+
+    const runtime = createRuntime(workflow, { value: 1 });
+    expect(runtime.getRendering()).toEqual({ value: 1 });
+
+    runtime.updateProps({ value: 3 });
+    expect(runtime.getRendering()).toEqual({ value: 6 });
+
+    runtime.dispose();
+  });
 });
