@@ -7,6 +7,8 @@
 export type {
   Action,
   ActionResult,
+  NoOutput,
+  NoProps,
   Observable,
   Output,
   Props,
@@ -29,7 +31,16 @@ export {
 } from './runtime';
 
 // Actions
-export { action, compose, emit, named, noChange } from './action';
+export { action, compose, emit, named, noChange, safeAction } from './action';
+
+// Workflow builder
+export { createStatefulWorkflow, type StatefulWorkflowConfig } from './workflowBuilder';
+
+// Child output helpers
+export { routeChildOutput, type ChildOutputHandlers } from './child';
+
+// Result helpers
+export { matchResult, type Result, type ResultHandlers } from './result';
 
 // Workers
 export {

@@ -11,6 +11,12 @@
 export type Props<T> = T;
 
 /**
+ * Convenience alias for workflows with no props.
+ */
+// eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+export type NoProps = void;
+
+/**
  * State: Internal state of a workflow, managed by the runtime.
  * Must be immutable - state transitions return new state objects.
  *
@@ -32,6 +38,11 @@ export type Rendering<T> = T;
  * @template T - The output type
  */
 export type Output<T> = T;
+
+/**
+ * Convenience alias for workflows that never emit outputs.
+ */
+export type NoOutput = never;
 
 /**
  * Action: A pure function that transforms state and optionally emits output.

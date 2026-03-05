@@ -56,6 +56,8 @@ const rendering = useWorkflow(workflow, props);
 ```
 
 - Re-renders when workflow rendering changes.
+- `props` are constrained by the `AllowedProp` TypeScript contract: primitives/functions/arrays/plain objects and `Date`/`Map`/`Set`/`ArrayBuffer`/typed-array views.
+- In development environments (React Native `__DEV__`, `NODE_ENV !== 'production'`, or bundler dev flags), unsupported values (class instances, `URL`, `Error`, `RegExp`, `Promise`, `WeakMap`, `WeakSet`, etc.) throw `TypeError`.
 - Optional `options.resetOnWorkflowChange` recreates the runtime when workflow identity changes.
 - Works with React StrictMode development replays.
 - Runtime disposal remains strict in core: disposed runtimes still throw when used.
@@ -89,7 +91,8 @@ const rendering = useWorkflow(workflow, props, undefined, {
 - Preferred setup: React Compiler enabled in your app build.
 - With compiler enabled, manual `React.memo` is usually unnecessary.
 - Keep rendering identities stable in workflows to maximize compiler optimizations.
-- `updateProps` uses `Object.is`; if props are referentially equal, no update is emitted.
+- Keep workflow props small and immutable (prefer flat scalar values like ids/flags/strings).
+- Avoid passing large nested object graphs as hook props; derive and pass only the minimal inputs needed.
 
 ## Do and do not
 

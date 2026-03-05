@@ -33,8 +33,30 @@ interface Workflow<P, S, O, R> {
 **Type Parameters:**
 - `P` - Props (input from parent)
 - `S` - State (internal state machine)
-- `O` - Output (events to parent, or `never` if none)
+- `O` - Output (events to parent, or `never`/`NoOutput` if none)
 - `R` - Rendering (external representation)
+
+**Common aliases:**
+- `NoProps` - Alias for `void`
+- `NoOutput` - Alias for `never`
+
+### `createStatefulWorkflow(config)`
+
+Ergonomic builder for creating workflows with strong inference.
+
+```typescript
+import { createStatefulWorkflow } from '@workflow-ts/core';
+
+const counterWorkflow = createStatefulWorkflow({
+  initialState: () => ({ count: 0 }),
+  render: (_props, state, ctx) => ({
+    count: state.count,
+    increment: () => {
+      ctx.actionSink.send((s) => ({ state: { count: s.count + 1 } }));
+    },
+  }),
+});
+```
 
 ### `createRuntime(workflow, props, config?)`
 
@@ -164,7 +186,7 @@ interface ActionResult<S, O> {
 **Action Helpers:**
 
 ```typescript
-import { action, emit, noChange, compose, named } from '@workflow-ts/core';
+import { action, emit, noChange, compose, named, safeAction } from '@workflow-ts/core';
 
 // Simple state update
 const increment = action<{ count: number }>((s) => ({ count: s.count + 1 }));
@@ -186,6 +208,47 @@ const resetAndNotify = compose(
 
 // Named action (for debugging)
 const namedIncrement = named('increment', increment);
+// Runtime DevTools events include: actionName: 'increment'
+
+type StateUnion =
+  | { type: 'idle' }
+  | { type: 'loaded'; value: number };
+
+// Guarded action for union states
+const loadedOnly = safeAction<StateUnion, never, 'loaded'>('loaded', (s) => ({
+  state: { ...s, value: s.value + 1 },
+}));
+```
+
+### Child Output Routing
+
+```typescript
+import { routeChildOutput } from '@workflow-ts/core';
+
+type ChildOutput = { type: 'success'; id: string } | { type: 'cancel' };
+type ParentState = { step: 'idle' | 'done' };
+type ParentOutput = { type: 'saved'; id: string };
+
+const onChildOutput = routeChildOutput<ChildOutput, ParentState, ParentOutput>({
+  success: (output) => () => ({
+    state: { step: 'done' },
+    output: { type: 'saved', id: output.id },
+  }),
+  cancel: () => () => ({ state: { step: 'idle' } }),
+});
+```
+
+### Result Helpers
+
+```typescript
+import { matchResult, type Result } from '@workflow-ts/core';
+
+type User = { id: string };
+const result: Result<User, Error> = { type: 'success', data: { id: 'u1' } };
+const action = matchResult(result, {
+  success: (user) => () => ({ state: { status: 'loaded', user } }),
+  error: (error) => () => ({ state: { status: 'error', message: error.message } }),
+});
 ```
 
 ### Worker Types

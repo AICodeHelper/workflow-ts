@@ -30,6 +30,7 @@ export interface DevToolsEvent<S = unknown, O = unknown, R = unknown> {
   readonly state?: S;
   readonly rendering?: R;
   readonly action?: Action<S, O>;
+  readonly actionName?: string;
   readonly prevState?: S;
   readonly newState?: S;
   readonly output?: O;

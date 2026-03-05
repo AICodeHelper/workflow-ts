@@ -31,7 +31,26 @@ This keeps workflow logic inside workflows and keeps React focused on rendering.
 - Preferred setup: React Compiler enabled in the consuming app.
 - With React Compiler, manual `React.memo` is usually unnecessary.
 - Keep props/rendering references stable to minimize work.
-- Runtime prop updates use `Object.is`; passing the same prop reference does not emit an update.
+- Keep workflow props small and immutable (prefer flat scalar values like ids/flags/strings).
+- Avoid passing large nested object graphs as hook props; pass only minimal derived inputs.
+
+## Props Contract
+
+`useWorkflow` and `useWorkflowWithState` expose a TypeScript `AllowedProp` contract for hook props.
+At runtime, unsupported values are validated and rejected only in development environments (React Native `__DEV__`, `NODE_ENV !== 'production'`, or bundler dev flags).
+
+Allowed values:
+- primitives (`string`, `number`, `boolean`, `bigint`, `symbol`, `null`, `undefined`)
+- functions
+- arrays
+- plain objects (`Object.prototype` or `null` prototype)
+- `Date`, `Map`, `Set`
+- `ArrayBuffer`, `DataView`, typed arrays
+
+Rejected values:
+- class instances
+- branded built-ins outside the allowlist (`URL`, `Error`, `RegExp`, etc.)
+- `Promise`, `WeakMap`, `WeakSet`
 
 ## Hooks
 
@@ -66,7 +85,7 @@ function Counter() {
 **Parameters:**
 
 - `workflow` - The workflow definition
-- `props` - Props to pass to the workflow
+- `props` - Props to pass to the workflow (must satisfy the plain-only contract above)
 - `onOutput?` - Optional callback for workflow outputs
 - `options?` - Optional hook options
 
@@ -110,7 +129,7 @@ function SearchComponent() {
 
 **Options:**
 
-- `props: P` - Initial props
+- `props: P` - Initial props (must satisfy the plain-only contract above)
 - `onOutput?: (output: O) => void` - Output callback
 - `outputHandlers?: { [K in O extends { type: string } ? O['type'] : never]?: (output: Extract<O, { type: K }>) => void }` - Typed per-output handlers for discriminated union outputs.
 - `resetOnWorkflowChange?: boolean` - Recreate runtime when workflow identity changes (opt-in). Defaults to `false`.

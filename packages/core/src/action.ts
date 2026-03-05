@@ -22,6 +22,32 @@ export function action<S, O>(update: (state: S) => S, output?: O): Action<S, O> 
 }
 
 /**
+ * Create a state-guarded action for discriminated union states.
+ * If current state type doesn't match, action becomes a no-op.
+ *
+ * @example
+ * ```typescript
+ * type State = { type: 'idle' } | { type: 'loaded'; value: number };
+ *
+ * const loadedOnly = safeAction<State, never, 'loaded'>('loaded', (s) => ({
+ *   state: { ...s, value: s.value + 1 },
+ * }));
+ * ```
+ */
+export function safeAction<S extends { type: string }, O, K extends S['type']>(
+  expectedType: K,
+  reducer: (state: Extract<S, { type: K }>) => ActionResult<S, O>,
+): Action<S, O> {
+  return (state: S): ActionResult<S, O> => {
+    if (state.type !== expectedType) {
+      return { state };
+    }
+
+    return reducer(state as Extract<S, { type: K }>);
+  };
+}
+
+/**
  * Create an action that only emits output without changing state.
  *
  * @example

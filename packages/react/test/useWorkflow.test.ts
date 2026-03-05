@@ -3,7 +3,8 @@ import type { Workflow } from '@workflow-ts/core';
 import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useWorkflow, useWorkflowWithState } from '../src/useWorkflow';
+import type { AllowedProp } from '../src/useWorkflow';
+import { resolveShouldValidateProps, useWorkflow, useWorkflowWithState } from '../src/useWorkflow';
 
 const flushTimers = async (): Promise<void> => {
   await new Promise<void>((resolve) => {
@@ -71,15 +72,172 @@ interface PropsWorkflowRendering {
 const propsWorkflow: Workflow<{ initial: number }, PropsWorkflowState, never, PropsWorkflowRendering> = {
   initialState: (props) => ({ value: props.initial }),
 
-  render: (props, state): PropsWorkflowRendering => ({
-    value: state.value,
-    doubled: state.value * 2,
+  render: (props): PropsWorkflowRendering => ({
+    value: props.initial,
+    doubled: props.initial * 2,
+  }),
+};
+
+interface ComplexProps {
+  readonly profile: {
+    count: number;
+  };
+  readonly timestamp: Date;
+  readonly tags: Set<string>;
+  readonly scores: Map<string, number>;
+}
+
+interface ComplexRendering {
+  readonly count: number;
+  readonly timestampMs: number;
+  readonly tagCount: number;
+  readonly alphaScore: number | undefined;
+}
+
+const complexPropsWorkflow: Workflow<ComplexProps, null, never, ComplexRendering> = {
+  initialState: () => null,
+  render: (props): ComplexRendering => ({
+    count: props.profile.count,
+    timestampMs: props.timestamp.getTime(),
+    tagCount: props.tags.size,
+    alphaScore: props.scores.get('alpha'),
+  }),
+};
+
+interface ArrayProps {
+  readonly items: number[];
+}
+
+interface ArrayRendering {
+  readonly itemCount: number;
+  readonly lastItem: number | undefined;
+}
+
+const arrayPropsWorkflow: Workflow<ArrayProps, null, never, ArrayRendering> = {
+  initialState: () => null,
+  render: (props): ArrayRendering => ({
+    itemCount: props.items.length,
+    lastItem: props.items.at(-1),
+  }),
+};
+
+interface CyclicProps {
+  value: number;
+  self?: CyclicProps;
+}
+
+interface CyclicRendering {
+  readonly value: number;
+  readonly selfValue: number | undefined;
+}
+
+const cyclicPropsWorkflow: Workflow<CyclicProps, null, never, CyclicRendering> = {
+  initialState: () => null,
+  render: (props): CyclicRendering => ({
+    value: props.value,
+    selfValue: props.self?.value,
+  }),
+};
+
+class SearchQueryProps {
+  public query: string;
+
+  public constructor(query: string) {
+    this.query = query;
+  }
+}
+
+interface ClassRendering {
+  readonly query: string;
+}
+
+const classPropsWorkflow: Workflow<SearchQueryProps, null, never, ClassRendering> = {
+  initialState: () => null,
+  render: (props): ClassRendering => ({
+    query: props.query,
+  }),
+};
+
+const anyPropsWorkflow: Workflow<{ value: AllowedProp }, null, never, { value: AllowedProp }> = {
+  initialState: () => null,
+  render: (props) => ({
+    value: props.value,
   }),
 };
 
 // ============================================================
 // Tests
 // ============================================================
+
+describe('resolveShouldValidateProps', () => {
+  it('prefers react-native __DEV__ when present', () => {
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: true,
+        nodeEnv: 'production',
+        viteDev: false,
+        viteProd: true,
+        viteMode: 'production',
+      }),
+    ).toBe(true);
+  });
+
+  it('uses NODE_ENV when __DEV__ is unavailable', () => {
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: undefined,
+        nodeEnv: 'production',
+        viteDev: true,
+        viteProd: false,
+        viteMode: 'development',
+      }),
+    ).toBe(false);
+  });
+
+  it('falls back to import.meta.env DEV/PROD/MODE signals', () => {
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: undefined,
+        nodeEnv: undefined,
+        viteDev: true,
+        viteProd: undefined,
+        viteMode: undefined,
+      }),
+    ).toBe(true);
+
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: undefined,
+        nodeEnv: undefined,
+        viteDev: undefined,
+        viteProd: true,
+        viteMode: undefined,
+      }),
+    ).toBe(false);
+
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: undefined,
+        nodeEnv: undefined,
+        viteDev: undefined,
+        viteProd: undefined,
+        viteMode: 'production',
+      }),
+    ).toBe(false);
+  });
+
+  it('defaults to false when no signal is available', () => {
+    expect(
+      resolveShouldValidateProps({
+        reactNativeDev: undefined,
+        nodeEnv: undefined,
+        viteDev: undefined,
+        viteProd: undefined,
+        viteMode: undefined,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('useWorkflow', () => {
   it('should return initial rendering', () => {
@@ -143,6 +301,388 @@ describe('useWorkflow', () => {
     expect(result.current.doubled).toBe(20);
     
     unmount();
+  });
+
+  it('should not loop when rerendering with structurally equal props', () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ initial }) => useWorkflow(propsWorkflow, { initial }),
+      { initialProps: { initial: 5 } },
+    );
+
+    rerender({ initial: 10 });
+    expect(result.current.value).toBe(10);
+    expect(result.current.doubled).toBe(20);
+
+    rerender({ initial: 10 });
+    expect(result.current.value).toBe(10);
+    expect(result.current.doubled).toBe(20);
+
+    unmount();
+  });
+
+  it('should treat sets with equal primitive members as unchanged regardless of insertion order', () => {
+    interface SetProps {
+      readonly tags: Set<string>;
+    }
+
+    interface SetRendering {
+      readonly renderCount: number;
+    }
+
+    let renderCount = 0;
+    const setWorkflow: Workflow<SetProps, null, never, SetRendering> = {
+      initialState: () => null,
+      render: () => ({
+        renderCount: ++renderCount,
+      }),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(setWorkflow, props),
+      { initialProps: { props: { tags: new Set(['a', 'b']) } } },
+    );
+
+    expect(result.current.renderCount).toBe(1);
+
+    rerender({ props: { tags: new Set(['b', 'a']) } });
+    expect(result.current.renderCount).toBe(1);
+
+    unmount();
+  });
+
+  it('should update when set membership changes', () => {
+    interface SetProps {
+      readonly tags: Set<string>;
+    }
+
+    interface SetRendering {
+      readonly renderCount: number;
+      readonly size: number;
+    }
+
+    let renderCount = 0;
+    const setWorkflow: Workflow<SetProps, null, never, SetRendering> = {
+      initialState: () => null,
+      render: (props) => ({
+        renderCount: ++renderCount,
+        size: props.tags.size,
+      }),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(setWorkflow, props),
+      { initialProps: { props: { tags: new Set(['a', 'b']) } } },
+    );
+
+    expect(result.current.renderCount).toBe(1);
+    expect(result.current.size).toBe(2);
+
+    rerender({ props: { tags: new Set(['a', 'b', 'c']) } });
+    expect(result.current.renderCount).toBe(2);
+    expect(result.current.size).toBe(3);
+
+    unmount();
+  });
+
+  it('should treat sets of structural objects as unchanged when only insertion order differs', () => {
+    interface TagObject {
+      readonly id: number;
+      readonly meta: {
+        readonly enabled: boolean;
+      };
+    }
+
+    interface SetProps {
+      readonly tags: Set<TagObject>;
+    }
+
+    interface SetRendering {
+      readonly renderCount: number;
+    }
+
+    let renderCount = 0;
+    const setWorkflow: Workflow<SetProps, null, never, SetRendering> = {
+      initialState: () => null,
+      render: () => ({
+        renderCount: ++renderCount,
+      }),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(setWorkflow, props),
+      {
+        initialProps: {
+          props: {
+            tags: new Set<TagObject>([
+              { id: 1, meta: { enabled: true } },
+              { id: 2, meta: { enabled: false } },
+            ]),
+          },
+        },
+      },
+    );
+
+    expect(result.current.renderCount).toBe(1);
+
+    rerender({
+      props: {
+        tags: new Set<TagObject>([
+          { id: 2, meta: { enabled: false } },
+          { id: 1, meta: { enabled: true } },
+        ]),
+      },
+    });
+    expect(result.current.renderCount).toBe(1);
+
+    unmount();
+  });
+
+  it('should preserve cycle context when comparing reordered set members', () => {
+    interface CyclicSetNode {
+      id: number;
+      peer: CyclicSetNode;
+      owner: CyclicSetProps;
+    }
+
+    interface CyclicSetProps {
+      readonly marker: {
+        readonly label: string;
+      };
+      readonly nodes: Set<CyclicSetNode>;
+    }
+
+    interface CyclicSetRendering {
+      readonly renderCount: number;
+    }
+
+    const createCyclicSetProps = (order: readonly [number, number]): CyclicSetProps => {
+      const props = {
+        marker: { label: 'root' },
+        nodes: new Set<CyclicSetNode>(),
+      } as CyclicSetProps;
+      const nodeOne = { id: 1 } as CyclicSetNode;
+      const nodeTwo = { id: 2 } as CyclicSetNode;
+      nodeOne.peer = nodeTwo;
+      nodeTwo.peer = nodeOne;
+      nodeOne.owner = props;
+      nodeTwo.owner = props;
+
+      if (order[0] === 1) {
+        props.nodes.add(nodeOne);
+      } else {
+        props.nodes.add(nodeTwo);
+      }
+
+      if (order[1] === 1) {
+        props.nodes.add(nodeOne);
+      } else {
+        props.nodes.add(nodeTwo);
+      }
+
+      return props;
+    };
+
+    let renderCount = 0;
+    const cyclicSetWorkflow: Workflow<CyclicSetProps, null, never, CyclicSetRendering> = {
+      initialState: () => null,
+      render: () => ({
+        renderCount: ++renderCount,
+      }),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(cyclicSetWorkflow, props),
+      { initialProps: { props: createCyclicSetProps([1, 2]) } },
+    );
+
+    expect(result.current.renderCount).toBe(1);
+
+    rerender({ props: createCyclicSetProps([2, 1]) });
+    expect(result.current.renderCount).toBe(1);
+
+    unmount();
+  });
+
+  it('should sync non-plain and deep prop mutations on same top-level reference', () => {
+    const initialTimestamp = new Date('2026-01-01T00:00:00.000Z');
+    const mutableProps: ComplexProps = {
+      profile: { count: 1 },
+      timestamp: initialTimestamp,
+      tags: new Set(['a']),
+      scores: new Map([['alpha', 1]]),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(complexPropsWorkflow, props),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.count).toBe(1);
+    expect(result.current.timestampMs).toBe(initialTimestamp.getTime());
+    expect(result.current.tagCount).toBe(1);
+    expect(result.current.alphaScore).toBe(1);
+
+    mutableProps.profile.count = 2;
+    mutableProps.tags.add('b');
+    mutableProps.scores.set('alpha', 2);
+    mutableProps.timestamp.setUTCDate(mutableProps.timestamp.getUTCDate() + 1);
+
+    rerender({ props: mutableProps });
+
+    expect(result.current.count).toBe(2);
+    expect(result.current.timestampMs).toBe(mutableProps.timestamp.getTime());
+    expect(result.current.tagCount).toBe(2);
+    expect(result.current.alphaScore).toBe(2);
+
+    unmount();
+  });
+
+  it('should sync in-place array mutations on same top-level reference', () => {
+    const mutableProps: ArrayProps = {
+      items: [1, 2],
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(arrayPropsWorkflow, props),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.itemCount).toBe(2);
+    expect(result.current.lastItem).toBe(2);
+
+    mutableProps.items.push(3);
+    rerender({ props: mutableProps });
+
+    expect(result.current.itemCount).toBe(3);
+    expect(result.current.lastItem).toBe(3);
+
+    unmount();
+  });
+
+  it('should support cyclic props and reflect updates', () => {
+    const cyclicProps: CyclicProps = { value: 1 };
+    cyclicProps.self = cyclicProps;
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(cyclicPropsWorkflow, props),
+      { initialProps: { props: cyclicProps } },
+    );
+
+    expect(result.current.value).toBe(1);
+    expect(result.current.selfValue).toBe(1);
+
+    cyclicProps.value = 2;
+    rerender({ props: cyclicProps });
+
+    expect(result.current.value).toBe(2);
+    expect(result.current.selfValue).toBe(2);
+
+    unmount();
+  });
+
+  it('should throw for class-instance props', () => {
+    const queryProps = new SearchQueryProps('first');
+
+    expect(() => {
+      renderHook(() =>
+        useWorkflow<any, null, never, ClassRendering>(
+          classPropsWorkflow as unknown as Workflow<any, null, never, ClassRendering>,
+          queryProps,
+        ),
+      );
+    }).toThrowError(/Unsupported workflow props at "props": SearchQueryProps/);
+  });
+
+  it('should throw for nested unsupported branded objects with path details', () => {
+    const props = {
+      value: {
+        payload: {
+          resource: new URL('https://example.com'),
+        },
+      },
+    };
+
+    expect(() => {
+      renderHook(() => useWorkflow(anyPropsWorkflow, props));
+    }).toThrowError(/Unsupported workflow props at "props\.value\.payload\.resource": URL/);
+  });
+
+  it('should throw for Promise, WeakMap, and WeakSet props', () => {
+    const unsupportedValues = [Promise.resolve(1), new WeakMap(), new WeakSet()];
+
+    for (const unsupportedValue of unsupportedValues) {
+      expect(() => {
+        renderHook(() =>
+          useWorkflow(anyPropsWorkflow, {
+            value: unsupportedValue as unknown as AllowedProp,
+          }),
+        );
+      }).toThrowError(/Unsupported workflow props at "props\.value"/);
+    }
+  });
+
+  it('should validate unsupported props when __DEV__ is true', () => {
+    const runtimeGlobals = globalThis as { __DEV__?: unknown };
+    const previousDev = runtimeGlobals.__DEV__;
+    const previousNodeEnv = process.env.NODE_ENV;
+    runtimeGlobals.__DEV__ = true;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      expect(() => {
+        renderHook(() =>
+          useWorkflow(anyPropsWorkflow, { value: new URL('https://example.com') as unknown as AllowedProp }),
+        );
+      }).toThrowError(/Unsupported workflow props at "props\.value": URL/);
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousDev === undefined) {
+        delete runtimeGlobals.__DEV__;
+      } else {
+        runtimeGlobals.__DEV__ = previousDev;
+      }
+    }
+  });
+
+  it('should skip unsupported prop validation when __DEV__ is false', () => {
+    const runtimeGlobals = globalThis as { __DEV__?: unknown };
+    const previousDev = runtimeGlobals.__DEV__;
+    const previousNodeEnv = process.env.NODE_ENV;
+    runtimeGlobals.__DEV__ = false;
+    process.env.NODE_ENV = 'development';
+
+    try {
+      const value = new URL('https://example.com');
+      const { result, unmount } = renderHook(() =>
+        useWorkflow(anyPropsWorkflow, { value: value as unknown as AllowedProp }),
+      );
+      expect(result.current.value).toBe(value);
+      unmount();
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+      if (previousDev === undefined) {
+        delete runtimeGlobals.__DEV__;
+      } else {
+        runtimeGlobals.__DEV__ = previousDev;
+      }
+    }
+  });
+
+  it('should skip unsupported prop validation when NODE_ENV is production', () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const url = new URL('https://example.com');
+      const { result, unmount } = renderHook(() =>
+        useWorkflow(anyPropsWorkflow, { value: url as unknown as AllowedProp }),
+      );
+
+      expect(result.current.value).toBe(url);
+      unmount();
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 
   it('should dispose runtime on unmount', () => {
@@ -416,7 +956,7 @@ describe('useWorkflow', () => {
     unmount();
   });
 
-  it('should cancel pending dispose when reactivated quickly', () => {
+  it('should recreate runtime when reactivated quickly', () => {
     const { result, rerender, unmount } = renderHook(
       ({ isActive }) =>
         useWorkflow(counterWorkflow, undefined, undefined, {
@@ -434,12 +974,12 @@ describe('useWorkflow', () => {
     rerender({ isActive: false });
     rerender({ isActive: true });
 
-    expect(result.current.count).toBe(1);
+    expect(result.current.count).toBe(0);
 
     act(() => {
       result.current.onIncrement();
     });
-    expect(result.current.count).toBe(2);
+    expect(result.current.count).toBe(1);
 
     unmount();
   });
@@ -489,6 +1029,88 @@ describe('useWorkflowWithState', () => {
     expect(result.current.rendering.value).toBe(20);
     expect(result.current.props.initial).toBe(20);
     
+    unmount();
+  });
+
+  it('should sync deep prop mutations for useWorkflowWithState on same top-level reference', () => {
+    const mutableProps: ComplexProps = {
+      profile: { count: 1 },
+      timestamp: new Date('2026-01-01T00:00:00.000Z'),
+      tags: new Set(['a']),
+      scores: new Map([['alpha', 1]]),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflowWithState(complexPropsWorkflow, { props }),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.rendering.count).toBe(1);
+    expect(result.current.props.profile.count).toBe(1);
+
+    mutableProps.profile.count = 5;
+    mutableProps.tags.add('b');
+    mutableProps.scores.set('alpha', 5);
+    mutableProps.timestamp.setUTCDate(mutableProps.timestamp.getUTCDate() + 1);
+    rerender({ props: mutableProps });
+
+    expect(result.current.rendering.count).toBe(5);
+    expect(result.current.rendering.tagCount).toBe(2);
+    expect(result.current.rendering.alphaScore).toBe(5);
+    expect(result.current.rendering.timestampMs).toBe(mutableProps.timestamp.getTime());
+    expect(result.current.props.profile.count).toBe(5);
+
+    unmount();
+  });
+
+  it('should apply updateProps when reusing the same mutable object reference', () => {
+    const mutableProps = { initial: 5 };
+    const { result, unmount } = renderHook(() =>
+      useWorkflowWithState(propsWorkflow, { props: { initial: 1 } }),
+    );
+
+    act(() => {
+      result.current.updateProps(mutableProps);
+    });
+    expect(result.current.rendering.value).toBe(5);
+    expect(result.current.props.initial).toBe(5);
+
+    mutableProps.initial = 8;
+    act(() => {
+      result.current.updateProps(mutableProps);
+    });
+    expect(result.current.rendering.value).toBe(8);
+    expect(result.current.props.initial).toBe(8);
+
+    unmount();
+  });
+
+  it('should throw for class-instance initial props', () => {
+    const initialProps = new SearchQueryProps('first');
+
+    expect(() => {
+      renderHook(() =>
+        useWorkflowWithState<any, null, never, ClassRendering>(
+          classPropsWorkflow as unknown as Workflow<any, null, never, ClassRendering>,
+          { props: initialProps },
+        ),
+      );
+    }).toThrowError(/Unsupported workflow props at "props": SearchQueryProps/);
+  });
+
+  it('should throw for unsupported props passed to updateProps', () => {
+    const { result, unmount } = renderHook(() =>
+      useWorkflowWithState(anyPropsWorkflow, { props: { value: 'ok' } }),
+    );
+
+    expect(() => {
+      act(() => {
+        result.current.updateProps({
+          value: new Error('boom') as unknown as AllowedProp,
+        } as { value: AllowedProp });
+      });
+    }).toThrowError(/Unsupported workflow props at "props\.value": Error/);
+
     unmount();
   });
 

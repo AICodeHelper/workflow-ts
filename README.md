@@ -109,6 +109,7 @@ function DataRenderer({ rendering }: { rendering: Rendering }) {
 
 Preferred architecture is subscribe to a workflow rendering, then map rendering data to React components.
 With React Compiler enabled, manual `React.memo` is usually unnecessary.
+React hooks expose a TypeScript plain-only props contract and validate unsupported values only in development environments (for example React Native `__DEV__`, `NODE_ENV !== 'production'`, or bundler dev flags).
 
 ### Test Without UI
 
@@ -214,6 +215,7 @@ See the [`examples/`](./examples) directory:
 
 - [Core API Reference](./packages/core/README.md)
 - [React Integration](./packages/react/README.md)
+- [Large Root Workflow Pattern](./docs/guides/large-root-workflow.md)
 
 ## Comparison
 

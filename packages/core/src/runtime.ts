@@ -312,12 +312,16 @@ export class WorkflowRuntime<P, S, O, R> {
       this.workerManager.endRenderCycle();
 
       // Dispose any children that weren't rendered in this cycle
+      const keysToDelete: string[] = [];
       for (const [key, child] of this.childRuntimes) {
         if (!this.touchedChildren.has(key)) {
           child.dispose();
-          this.childRuntimes.delete(key);
+          keysToDelete.push(key);
         }
       }
+      keysToDelete.forEach((key) => {
+        this.childRuntimes.delete(key);
+      });
       this.touchedChildren.clear();
     }
 
@@ -361,9 +365,11 @@ export class WorkflowRuntime<P, S, O, R> {
 
     try {
       this.processAction(action);
-      while (!this.disposed && this.actionQueue.length > 0) {
+      while (!this.disposed) {
+        // Only shift when active so disposal cannot mutate the queue as a side effect of loop control flow.
         const next = this.actionQueue.shift();
-        if (next) this.processAction(next);
+        if (next === undefined) break;
+        this.processAction(next);
       }
     } catch (error) {
       this.debug?.('error', 'Error processing action', error);
@@ -375,6 +381,7 @@ export class WorkflowRuntime<P, S, O, R> {
 
   private processAction(action: Action<S, O>): void {
     const interceptors = this.config.interceptors ?? [];
+    const actionName = this.getActionName(action);
 
     // Build context for interceptors
     const context = {
@@ -385,7 +392,7 @@ export class WorkflowRuntime<P, S, O, R> {
 
     // DevTools: log action send
     const startTime = this.devTools ? performance.now() : 0;
-    this.devTools?._log({ type: 'action:send', action, state: this.state });
+    this.devTools?._log({ type: 'action:send', action, actionName, state: this.state });
 
     // Call onSend interceptors
     for (const interceptor of interceptors) {
@@ -418,6 +425,7 @@ export class WorkflowRuntime<P, S, O, R> {
       this.devTools?._log({
         type: 'action:error',
         action,
+        actionName,
         state: this.state,
         error: error as Error,
       });
@@ -430,6 +438,7 @@ export class WorkflowRuntime<P, S, O, R> {
     this.devTools?._log({
       type: 'action:complete',
       action,
+      actionName,
       state: this.state,
       durationMs,
     });
@@ -534,11 +543,14 @@ export class WorkflowRuntime<P, S, O, R> {
     } else {
       // Update props if child already exists - this allows child to react to prop changes
       child.updateProps(props);
-      if (handler !== undefined) {
-        this.updateOutputHandler(childKey, (output) => {
-          this.handleAction(handler(output as CO));
-        });
-      }
+      this.updateOutputHandler(
+        childKey,
+        handler === undefined
+          ? undefined
+          : (output) => {
+              this.handleAction(handler(output as CO));
+            },
+      );
     }
 
     return child.getRendering();
@@ -583,6 +595,14 @@ export class WorkflowRuntime<P, S, O, R> {
     if (this.disposed) {
       throw new Error('Cannot use disposed workflow runtime');
     }
+  }
+
+  private getActionName(action: Action<S, O>): string | undefined {
+    const maybeName = (action as { readonly name?: unknown }).name;
+    if (typeof maybeName === 'string' && maybeName.length > 0) {
+      return maybeName;
+    }
+    return undefined;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
