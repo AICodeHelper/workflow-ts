@@ -71,9 +71,89 @@ interface PropsWorkflowRendering {
 const propsWorkflow: Workflow<{ initial: number }, PropsWorkflowState, never, PropsWorkflowRendering> = {
   initialState: (props) => ({ value: props.initial }),
 
-  render: (props, state): PropsWorkflowRendering => ({
-    value: state.value,
-    doubled: state.value * 2,
+  render: (props): PropsWorkflowRendering => ({
+    value: props.initial,
+    doubled: props.initial * 2,
+  }),
+};
+
+interface ComplexProps {
+  readonly profile: {
+    count: number;
+  };
+  readonly timestamp: Date;
+  readonly tags: Set<string>;
+  readonly scores: Map<string, number>;
+}
+
+interface ComplexRendering {
+  readonly count: number;
+  readonly timestampMs: number;
+  readonly tagCount: number;
+  readonly alphaScore: number | undefined;
+}
+
+const complexPropsWorkflow: Workflow<ComplexProps, null, never, ComplexRendering> = {
+  initialState: () => null,
+  render: (props): ComplexRendering => ({
+    count: props.profile.count,
+    timestampMs: props.timestamp.getTime(),
+    tagCount: props.tags.size,
+    alphaScore: props.scores.get('alpha'),
+  }),
+};
+
+interface ArrayProps {
+  readonly items: number[];
+}
+
+interface ArrayRendering {
+  readonly itemCount: number;
+  readonly lastItem: number | undefined;
+}
+
+const arrayPropsWorkflow: Workflow<ArrayProps, null, never, ArrayRendering> = {
+  initialState: () => null,
+  render: (props): ArrayRendering => ({
+    itemCount: props.items.length,
+    lastItem: props.items.at(-1),
+  }),
+};
+
+interface CyclicProps {
+  value: number;
+  self?: CyclicProps;
+}
+
+interface CyclicRendering {
+  readonly value: number;
+  readonly selfValue: number | undefined;
+}
+
+const cyclicPropsWorkflow: Workflow<CyclicProps, null, never, CyclicRendering> = {
+  initialState: () => null,
+  render: (props): CyclicRendering => ({
+    value: props.value,
+    selfValue: props.self?.value,
+  }),
+};
+
+class SearchQueryProps {
+  public query: string;
+
+  public constructor(query: string) {
+    this.query = query;
+  }
+}
+
+interface ClassRendering {
+  readonly query: string;
+}
+
+const classPropsWorkflow: Workflow<SearchQueryProps, null, never, ClassRendering> = {
+  initialState: () => null,
+  render: (props): ClassRendering => ({
+    query: props.query,
   }),
 };
 
@@ -142,6 +222,118 @@ describe('useWorkflow', () => {
     expect(result.current.value).toBe(10);
     expect(result.current.doubled).toBe(20);
     
+    unmount();
+  });
+
+  it('should not loop when rerendering with structurally equal props', () => {
+    const { result, rerender, unmount } = renderHook(
+      ({ initial }) => useWorkflow(propsWorkflow, { initial }),
+      { initialProps: { initial: 5 } },
+    );
+
+    rerender({ initial: 10 });
+    expect(result.current.value).toBe(10);
+    expect(result.current.doubled).toBe(20);
+
+    rerender({ initial: 10 });
+    expect(result.current.value).toBe(10);
+    expect(result.current.doubled).toBe(20);
+
+    unmount();
+  });
+
+  it('should sync non-plain and deep prop mutations on same top-level reference', () => {
+    const initialTimestamp = new Date('2026-01-01T00:00:00.000Z');
+    const mutableProps: ComplexProps = {
+      profile: { count: 1 },
+      timestamp: initialTimestamp,
+      tags: new Set(['a']),
+      scores: new Map([['alpha', 1]]),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(complexPropsWorkflow, props),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.count).toBe(1);
+    expect(result.current.timestampMs).toBe(initialTimestamp.getTime());
+    expect(result.current.tagCount).toBe(1);
+    expect(result.current.alphaScore).toBe(1);
+
+    mutableProps.profile.count = 2;
+    mutableProps.tags.add('b');
+    mutableProps.scores.set('alpha', 2);
+    mutableProps.timestamp.setUTCDate(mutableProps.timestamp.getUTCDate() + 1);
+
+    rerender({ props: mutableProps });
+
+    expect(result.current.count).toBe(2);
+    expect(result.current.timestampMs).toBe(mutableProps.timestamp.getTime());
+    expect(result.current.tagCount).toBe(2);
+    expect(result.current.alphaScore).toBe(2);
+
+    unmount();
+  });
+
+  it('should sync in-place array mutations on same top-level reference', () => {
+    const mutableProps: ArrayProps = {
+      items: [1, 2],
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(arrayPropsWorkflow, props),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.itemCount).toBe(2);
+    expect(result.current.lastItem).toBe(2);
+
+    mutableProps.items.push(3);
+    rerender({ props: mutableProps });
+
+    expect(result.current.itemCount).toBe(3);
+    expect(result.current.lastItem).toBe(3);
+
+    unmount();
+  });
+
+  it('should support cyclic props and reflect updates', () => {
+    const cyclicProps: CyclicProps = { value: 1 };
+    cyclicProps.self = cyclicProps;
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(cyclicPropsWorkflow, props),
+      { initialProps: { props: cyclicProps } },
+    );
+
+    expect(result.current.value).toBe(1);
+    expect(result.current.selfValue).toBe(1);
+
+    cyclicProps.value = 2;
+    rerender({ props: cyclicProps });
+
+    expect(result.current.value).toBe(2);
+    expect(result.current.selfValue).toBe(2);
+
+    unmount();
+  });
+
+  it('should support class-instance props and reflect field mutations', () => {
+    const queryProps = new SearchQueryProps('first');
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(classPropsWorkflow, props),
+      { initialProps: { props: queryProps } },
+    );
+
+    expect(result.current.query).toBe('first');
+
+    queryProps.query = 'second';
+    rerender({ props: queryProps });
+
+    expect(result.current.query).toBe('second');
+
     unmount();
   });
 
@@ -416,7 +608,7 @@ describe('useWorkflow', () => {
     unmount();
   });
 
-  it('should cancel pending dispose when reactivated quickly', () => {
+  it('should recreate runtime when reactivated quickly', () => {
     const { result, rerender, unmount } = renderHook(
       ({ isActive }) =>
         useWorkflow(counterWorkflow, undefined, undefined, {
@@ -434,12 +626,12 @@ describe('useWorkflow', () => {
     rerender({ isActive: false });
     rerender({ isActive: true });
 
-    expect(result.current.count).toBe(1);
+    expect(result.current.count).toBe(0);
 
     act(() => {
       result.current.onIncrement();
     });
-    expect(result.current.count).toBe(2);
+    expect(result.current.count).toBe(1);
 
     unmount();
   });
@@ -489,6 +681,59 @@ describe('useWorkflowWithState', () => {
     expect(result.current.rendering.value).toBe(20);
     expect(result.current.props.initial).toBe(20);
     
+    unmount();
+  });
+
+  it('should sync deep prop mutations for useWorkflowWithState on same top-level reference', () => {
+    const mutableProps: ComplexProps = {
+      profile: { count: 1 },
+      timestamp: new Date('2026-01-01T00:00:00.000Z'),
+      tags: new Set(['a']),
+      scores: new Map([['alpha', 1]]),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflowWithState(complexPropsWorkflow, { props }),
+      { initialProps: { props: mutableProps } },
+    );
+
+    expect(result.current.rendering.count).toBe(1);
+    expect(result.current.props.profile.count).toBe(1);
+
+    mutableProps.profile.count = 5;
+    mutableProps.tags.add('b');
+    mutableProps.scores.set('alpha', 5);
+    mutableProps.timestamp.setUTCDate(mutableProps.timestamp.getUTCDate() + 1);
+    rerender({ props: mutableProps });
+
+    expect(result.current.rendering.count).toBe(5);
+    expect(result.current.rendering.tagCount).toBe(2);
+    expect(result.current.rendering.alphaScore).toBe(5);
+    expect(result.current.rendering.timestampMs).toBe(mutableProps.timestamp.getTime());
+    expect(result.current.props.profile.count).toBe(5);
+
+    unmount();
+  });
+
+  it('should apply updateProps when reusing the same mutable object reference', () => {
+    const mutableProps = { initial: 5 };
+    const { result, unmount } = renderHook(() =>
+      useWorkflowWithState(propsWorkflow, { props: { initial: 1 } }),
+    );
+
+    act(() => {
+      result.current.updateProps(mutableProps);
+    });
+    expect(result.current.rendering.value).toBe(5);
+    expect(result.current.props.initial).toBe(5);
+
+    mutableProps.initial = 8;
+    act(() => {
+      result.current.updateProps(mutableProps);
+    });
+    expect(result.current.rendering.value).toBe(8);
+    expect(result.current.props.initial).toBe(8);
+
     unmount();
   });
 

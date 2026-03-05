@@ -214,6 +214,7 @@ See the [`examples/`](./examples) directory:
 
 - [Core API Reference](./packages/core/README.md)
 - [React Integration](./packages/react/README.md)
+- [Large Root Workflow Pattern](./docs/guides/large-root-workflow.md)
 
 ## Comparison
 

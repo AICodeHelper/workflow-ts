@@ -7,6 +7,7 @@ import {
 import {
   createRuntime,
   action,
+  named,
   type Workflow,
   type Action,
 } from '../src/index';
@@ -184,6 +185,22 @@ describe('DevTools', () => {
       expect(events).toContainEqual(
         expect.objectContaining({ type: 'stateChange' })
       );
+
+      runtime.dispose();
+    });
+
+    it('should include actionName for named actions in devtools events', () => {
+      // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+      const devTools = createDevTools<CounterState, void, { count: number }>();
+      const runtime = createRuntime(counterWorkflow, undefined, { devTools });
+
+      runtime.send(named('bumpCount', (state) => ({ state: { count: state.count + 1 } })));
+
+      const sendEvent = devTools.getEvents().find((event) => event.type === 'action:send');
+      const completeEvent = devTools.getEvents().find((event) => event.type === 'action:complete');
+
+      expect(sendEvent?.actionName).toBe('bumpCount');
+      expect(completeEvent?.actionName).toBe('bumpCount');
 
       runtime.dispose();
     });

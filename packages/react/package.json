@@ -39,7 +39,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Tests temporarily disabled - see issue #29\"",
+    "test": "vitest run",
     "test:run": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist *.tsbuildinfo"

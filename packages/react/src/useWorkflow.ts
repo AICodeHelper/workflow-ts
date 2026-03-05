@@ -4,6 +4,180 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 
 type RuntimeLifecycleMode = 'always-on' | 'pause-when-backgrounded';
 
+const isObjectLike = (value: unknown): value is Record<string | symbol, unknown> => {
+  return typeof value === 'object' && value !== null;
+};
+
+interface PropsSnapshot {
+  readonly cloned: unknown;
+}
+
+const deepClone = (value: unknown, seen = new WeakMap<object, unknown>()): unknown => {
+  if (!isObjectLike(value)) return value;
+  if (seen.has(value)) return seen.get(value);
+  if (value instanceof WeakMap || value instanceof WeakSet || value instanceof Promise) return value;
+
+  if (value instanceof Date) return new Date(value.getTime());
+  if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+
+  if (Array.isArray(value)) {
+    const clone: unknown[] = [];
+    seen.set(value, clone);
+    for (const item of value) {
+      clone.push(deepClone(item, seen));
+    }
+    return clone;
+  }
+
+  if (value instanceof Map) {
+    const clone = new Map<unknown, unknown>();
+    seen.set(value, clone);
+    for (const [key, mapValue] of value.entries()) {
+      clone.set(deepClone(key, seen), deepClone(mapValue, seen));
+    }
+    return clone;
+  }
+
+  if (value instanceof Set) {
+    const clone = new Set<unknown>();
+    seen.set(value, clone);
+    for (const setValue of value.values()) {
+      clone.add(deepClone(setValue, seen));
+    }
+    return clone;
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    if (value instanceof DataView) {
+      const cloneBuffer = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+      return new DataView(cloneBuffer);
+    }
+    return new (value.constructor as new (input: ArrayBufferView) => unknown)(value);
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return value.slice(0);
+  }
+
+  const prototype = Object.getPrototypeOf(value) as object | null;
+  const clone = Object.create(prototype) as Record<string | symbol, unknown>;
+  seen.set(value, clone);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor) continue;
+    if ('value' in descriptor) {
+      descriptor.value = deepClone(descriptor.value, seen);
+    }
+    Object.defineProperty(clone, key, descriptor);
+  }
+
+  return clone;
+};
+
+const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>()): boolean => {
+  if (Object.is(a, b)) return true;
+  if (!isObjectLike(a) || !isObjectLike(b)) return false;
+  if (a instanceof WeakMap || b instanceof WeakMap || a instanceof WeakSet || b instanceof WeakSet) {
+    return false;
+  }
+
+  const seenTarget = seen.get(a);
+  if (seenTarget !== undefined) {
+    return seenTarget === b;
+  }
+  seen.set(a, b);
+
+  if (a instanceof Date || b instanceof Date) {
+    if (!(a instanceof Date) || !(b instanceof Date)) return false;
+    return a.getTime() === b.getTime();
+  }
+
+  if (a instanceof RegExp || b instanceof RegExp) {
+    if (!(a instanceof RegExp) || !(b instanceof RegExp)) return false;
+    return a.source === b.source && a.flags === b.flags;
+  }
+
+  if (a instanceof Map || b instanceof Map) {
+    if (!(a instanceof Map) || !(b instanceof Map)) return false;
+    if (a.size !== b.size) return false;
+
+    const bEntries = [...b.entries()];
+    let index = 0;
+    for (const [aKey, aValue] of a.entries()) {
+      const [bKey, bValue] = bEntries[index] ?? [];
+      if (!deepEqual(aKey, bKey, seen)) return false;
+      if (!deepEqual(aValue, bValue, seen)) return false;
+      index += 1;
+    }
+    return true;
+  }
+
+  if (a instanceof Set || b instanceof Set) {
+    if (!(a instanceof Set) || !(b instanceof Set)) return false;
+    if (a.size !== b.size) return false;
+
+    const bValues = [...b.values()];
+    let index = 0;
+    for (const aValue of a.values()) {
+      const bValue = bValues[index];
+      if (!deepEqual(aValue, bValue, seen)) return false;
+      index += 1;
+    }
+    return true;
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (!deepEqual(a[i], b[i], seen)) return false;
+    }
+    return true;
+  }
+
+  if (ArrayBuffer.isView(a) || ArrayBuffer.isView(b)) {
+    if (!ArrayBuffer.isView(a) || !ArrayBuffer.isView(b)) return false;
+    if (a.constructor !== b.constructor || a.byteLength !== b.byteLength) return false;
+    const aBytes = new Uint8Array(a.buffer, a.byteOffset, a.byteLength);
+    const bBytes = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+    for (let i = 0; i < aBytes.length; i += 1) {
+      if (aBytes[i] !== bBytes[i]) return false;
+    }
+    return true;
+  }
+
+  if (a instanceof ArrayBuffer || b instanceof ArrayBuffer) {
+    if (!(a instanceof ArrayBuffer) || !(b instanceof ArrayBuffer)) return false;
+    if (a.byteLength !== b.byteLength) return false;
+    const aBytes = new Uint8Array(a);
+    const bBytes = new Uint8Array(b);
+    for (let i = 0; i < aBytes.length; i += 1) {
+      if (aBytes[i] !== bBytes[i]) return false;
+    }
+    return true;
+  }
+
+  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) return false;
+
+  const aKeys = Reflect.ownKeys(a);
+  const bKeys = Reflect.ownKeys(b);
+  if (aKeys.length !== bKeys.length) return false;
+
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    if (!deepEqual(a[key], b[key], seen)) return false;
+  }
+
+  return true;
+};
+
+const createPropsSnapshot = (props: unknown): PropsSnapshot => ({
+  cloned: deepClone(props),
+});
+
+const propsChanged = (snapshot: PropsSnapshot, nextProps: unknown): boolean => {
+  return !deepEqual(snapshot.cloned, nextProps);
+};
+
 /**
  * Hook to use a workflow in a React component.
  *
@@ -46,6 +220,7 @@ export function useWorkflow<P, S, O, R>(
   const onOutputRef = useRef(onOutput);
   onOutputRef.current = onOutput;
   const lastRenderingRef = useRef<R | null>(null);
+  const lastSyncedPropsRef = useRef<PropsSnapshot>(createPropsSnapshot(props));
 
   const runtimeRef = useRef<WorkflowRuntime<P, S, O, R> | null>(null);
   const pendingDisposalsRef = useRef(new Map<WorkflowRuntime<P, S, O, R>, ReturnType<typeof setTimeout>>());
@@ -69,11 +244,13 @@ export function useWorkflow<P, S, O, R>(
     );
 
   if (needsNewRuntime) {
-    runtimeRef.current = createRuntime(workflow, props, {
+    const propsSnapshot = createPropsSnapshot(props);
+    runtimeRef.current = createRuntime(workflow, propsSnapshot.cloned as P, {
       onOutput: (output: O) => {
         onOutputRef.current?.(output);
       },
     });
+    lastSyncedPropsRef.current = propsSnapshot;
   }
   workflowRef.current = workflow;
 
@@ -181,11 +358,15 @@ export function useWorkflow<P, S, O, R>(
     };
   }, [runtime, shouldBeActive, scheduleDispose, cancelPendingDispose]);
 
-  // Update props when they change
+  // Intentionally run after every render so deep prop mutations are detected
+  // even when React reference equality says props are unchanged.
   useEffect(() => {
     if (runtime === null || runtime.isDisposed() || !shouldBeActive) return;
-    runtime.updateProps(props);
-  }, [runtime, props, shouldBeActive]);
+    if (!propsChanged(lastSyncedPropsRef.current, props)) return;
+    const propsSnapshot = createPropsSnapshot(props);
+    lastSyncedPropsRef.current = propsSnapshot;
+    runtime.updateProps(propsSnapshot.cloned as P);
+  });
 
   const subscribe = useCallback(
     (listener: () => void) => {
@@ -287,6 +468,7 @@ export function useWorkflowWithState<P, S, O, R>(
 ): UseWorkflowResult<P, S, R> {
   const onOutputRef = useRef(options.onOutput);
   onOutputRef.current = options.onOutput;
+  const lastSyncedExternalPropsRef = useRef<PropsSnapshot>(createPropsSnapshot(options.props));
 
   const runtimeRef = useRef<WorkflowRuntime<P, S, O, R> | null>(null);
   const pendingDisposalsRef = useRef(new Map<WorkflowRuntime<P, S, O, R>, ReturnType<typeof setTimeout>>());
@@ -314,11 +496,13 @@ export function useWorkflowWithState<P, S, O, R>(
     );
 
   if (needsNewRuntime) {
-    runtimeRef.current = createRuntime(workflow, options.props, {
+    const propsSnapshot = createPropsSnapshot(options.props);
+    runtimeRef.current = createRuntime(workflow, propsSnapshot.cloned as P, {
       onOutput: (output: O) => {
         onOutputRef.current?.(output);
       },
     });
+    lastSyncedExternalPropsRef.current = propsSnapshot;
   }
   workflowRef.current = workflow;
 
@@ -349,7 +533,7 @@ export function useWorkflowWithState<P, S, O, R>(
     if (!shouldBeActiveRef.current) return;
     const currentRuntime = runtimeRef.current;
     if (currentRuntime === null || currentRuntime.isDisposed()) return;
-    currentRuntime.updateProps(nextProps);
+    currentRuntime.updateProps(deepClone(nextProps) as P);
   }, []);
   const safeSnapshot = useCallback((): string | undefined => {
     const currentRuntime = runtimeRef.current;
@@ -459,11 +643,15 @@ export function useWorkflowWithState<P, S, O, R>(
     };
   }, [runtime, shouldBeActive, scheduleDispose, cancelPendingDispose, createResultSnapshot]);
 
-  // Update props when they change
+  // Intentionally run after every render so deep prop mutations are detected
+  // even when React reference equality says props are unchanged.
   useEffect(() => {
     if (runtime === null || runtime.isDisposed() || !shouldBeActive) return;
-    runtime.updateProps(options.props);
-  }, [runtime, options.props, shouldBeActive]);
+    if (!propsChanged(lastSyncedExternalPropsRef.current, options.props)) return;
+    const propsSnapshot = createPropsSnapshot(options.props);
+    lastSyncedExternalPropsRef.current = propsSnapshot;
+    runtime.updateProps(propsSnapshot.cloned as P);
+  });
 
   useEffect(() => {
     if (runtime !== null && !runtime.isDisposed()) {
@@ -477,6 +665,15 @@ export function useWorkflowWithState<P, S, O, R>(
         const rendering = runtime.getRendering();
         const state = runtime.getState();
         const props = runtime.getProps();
+        if (lastSnapshotRef.current !== null) {
+          if (
+            lastSnapshotRef.current.rendering === rendering &&
+            lastSnapshotRef.current.state === state &&
+            lastSnapshotRef.current.props === props
+          ) {
+            return lastSnapshotRef.current;
+          }
+        }
         const inactiveSnapshot = createResultSnapshot(rendering, state, props);
         lastSnapshotRef.current = inactiveSnapshot;
         lastSnapshotStringRef.current = runtime.snapshot();

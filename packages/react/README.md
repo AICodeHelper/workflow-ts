@@ -31,7 +31,8 @@ This keeps workflow logic inside workflows and keeps React focused on rendering.
 - Preferred setup: React Compiler enabled in the consuming app.
 - With React Compiler, manual `React.memo` is usually unnecessary.
 - Keep props/rendering references stable to minimize work.
-- Runtime prop updates use `Object.is`; passing the same prop reference does not emit an update.
+- Keep workflow props small and immutable (prefer flat scalar values like ids/flags/strings).
+- Avoid passing large nested object graphs as hook props; pass only minimal derived inputs.
 
 ## Hooks
 

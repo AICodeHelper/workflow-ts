@@ -13,3 +13,4 @@
 - [Snapshots](./guides/snapshots.md)
 - [Testing](./guides/testing.md)
 - [React Integration](./guides/react.md)
+- [Large Root Workflow Pattern](./guides/large-root-workflow.md)
