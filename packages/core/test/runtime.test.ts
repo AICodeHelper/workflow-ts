@@ -467,6 +467,196 @@ describe('Props updates', () => {
     unsubscribe();
     runtime.dispose();
   });
+
+  it('should call onPropsChanged before render when props change', () => {
+    interface Rendering {
+      readonly propsValue: string;
+      readonly stateValue: string;
+    }
+
+    const observedPropsChanges: Array<{
+      readonly oldProps: string;
+      readonly newProps: string;
+      readonly stateValue: string;
+    }> = [];
+
+    const workflow: Workflow<string, PropsWorkflowState, never, Rendering> = {
+      initialState: (props) => ({ lastPropsValue: `initial:${props}` }),
+      onPropsChanged: (oldProps, newProps, state) => {
+        observedPropsChanges.push({
+          oldProps,
+          newProps,
+          stateValue: state.lastPropsValue,
+        });
+        return {
+          lastPropsValue: `changed:${oldProps}->${newProps}`,
+        };
+      },
+      render: (props, state) => ({
+        propsValue: props,
+        stateValue: state.lastPropsValue,
+      }),
+    };
+
+    const runtime = createRuntime(workflow, 'first');
+
+    expect(runtime.getRendering()).toEqual({
+      propsValue: 'first',
+      stateValue: 'initial:first',
+    });
+    expect(observedPropsChanges).toEqual([]);
+
+    runtime.updateProps('second');
+
+    expect(runtime.getRendering()).toEqual({
+      propsValue: 'second',
+      stateValue: 'changed:first->second',
+    });
+    expect(observedPropsChanges).toEqual([
+      {
+        oldProps: 'first',
+        newProps: 'second',
+        stateValue: 'initial:first',
+      },
+    ]);
+
+    runtime.dispose();
+  });
+
+  it('should pass sequential old/new props to onPropsChanged across updates', () => {
+    const observedPropsChanges: Array<{ readonly oldProps: string; readonly newProps: string }> = [];
+
+    const workflow: Workflow<string, { readonly value: string }, never, { readonly value: string }> = {
+      initialState: (props) => ({ value: props }),
+      onPropsChanged: (oldProps, newProps) => {
+        observedPropsChanges.push({ oldProps, newProps });
+        return { value: newProps };
+      },
+      render: (_props, state) => ({ value: state.value }),
+    };
+
+    const runtime = createRuntime(workflow, 'start');
+    runtime.getRendering();
+
+    runtime.updateProps('middle');
+    runtime.updateProps('end');
+
+    expect(runtime.getRendering()).toEqual({ value: 'end' });
+    expect(observedPropsChanges).toEqual([
+      { oldProps: 'start', newProps: 'middle' },
+      { oldProps: 'middle', newProps: 'end' },
+    ]);
+
+    runtime.dispose();
+  });
+
+  it('should use custom propsEqual to suppress props updates and onPropsChanged', () => {
+    const initialProps = { value: 'same' };
+    const equivalentProps = { value: 'same' };
+    let onPropsChangedCalls = 0;
+
+    const workflow: Workflow<
+      { readonly value: string },
+      { readonly marker: number },
+      never,
+      { readonly marker: number }
+    > = {
+      initialState: () => ({ marker: 0 }),
+      onPropsChanged: () => {
+        onPropsChangedCalls += 1;
+        return { marker: onPropsChangedCalls };
+      },
+      render: (_props, state) => ({ marker: state.marker }),
+    };
+
+    const runtime = createRuntime(workflow, initialProps, {
+      propsEqual: (prev, next) => prev.value === next.value,
+    });
+
+    const notifications: number[] = [];
+    const unsubscribe = runtime.subscribe((rendering) => {
+      notifications.push(rendering.marker);
+    });
+
+    runtime.getRendering();
+    runtime.updateProps(equivalentProps);
+
+    expect(runtime.getProps()).toBe(initialProps);
+    expect(runtime.getRendering()).toEqual({ marker: 0 });
+    expect(onPropsChangedCalls).toBe(0);
+    expect(notifications).toEqual([]);
+
+    unsubscribe();
+    runtime.dispose();
+  });
+
+  it('should use custom propsEqual to force props updates and onPropsChanged', () => {
+    const observedPropsChanges: Array<{ readonly oldProps: string; readonly newProps: string }> = [];
+
+    const workflow: Workflow<string, { readonly value: number }, never, { readonly value: number }> = {
+      initialState: () => ({ value: 0 }),
+      onPropsChanged: (oldProps, newProps, state) => {
+        observedPropsChanges.push({ oldProps, newProps });
+        return { value: state.value + 1 };
+      },
+      render: (_props, state) => ({ value: state.value }),
+    };
+
+    const runtime = createRuntime(workflow, 'same', {
+      propsEqual: () => false,
+    });
+
+    const notifications: number[] = [];
+    const unsubscribe = runtime.subscribe((rendering) => {
+      notifications.push(rendering.value);
+    });
+
+    runtime.getRendering();
+    runtime.updateProps('same');
+
+    expect(observedPropsChanges).toEqual([{ oldProps: 'same', newProps: 'same' }]);
+    expect(runtime.getRendering()).toEqual({ value: 1 });
+    expect(notifications).toEqual([1]);
+
+    unsubscribe();
+    runtime.dispose();
+  });
+
+  it('should support value-based props equality for Kotlin-like behavior', () => {
+    interface UserProps {
+      readonly id: string;
+      readonly step: number;
+    }
+
+    const observedPropsChanges: Array<{ readonly oldStep: number; readonly newStep: number }> = [];
+
+    const workflow: Workflow<UserProps, { readonly step: number }, never, { readonly step: number }> = {
+      initialState: (props) => ({ step: props.step }),
+      onPropsChanged: (oldProps, newProps) => {
+        observedPropsChanges.push({ oldStep: oldProps.step, newStep: newProps.step });
+        return { step: newProps.step };
+      },
+      render: (_props, state) => ({ step: state.step }),
+    };
+
+    const runtime = createRuntime(
+      workflow,
+      { id: 'u1', step: 1 },
+      {
+        propsEqual: (prev, next) => prev.id === next.id && prev.step === next.step,
+      },
+    );
+
+    runtime.getRendering();
+    runtime.updateProps({ id: 'u1', step: 1 });
+    expect(observedPropsChanges).toEqual([]);
+
+    runtime.updateProps({ id: 'u1', step: 2 });
+    expect(runtime.getRendering()).toEqual({ step: 2 });
+    expect(observedPropsChanges).toEqual([{ oldStep: 1, newStep: 2 }]);
+
+    runtime.dispose();
+  });
 });
 
 // ============================================================
@@ -582,6 +772,54 @@ describe('Child workflow lifecycle', () => {
     runtime.getRendering().onIncrement();
 
     expect(runtime.getState().childOutputs[1]).toBe(4);
+    runtime.dispose();
+  });
+
+  it('should apply custom propsEqual to child runtimes', () => {
+    interface ParentProps {
+      readonly page: number;
+      readonly child: {
+        readonly value: number;
+      };
+    }
+
+    interface ParentRenderingWithChildState {
+      readonly childValue: number;
+    }
+
+    const childPropsChanges: Array<{ readonly oldValue: number; readonly newValue: number }> = [];
+
+    const childWithPropsHook: Workflow<
+      { readonly value: number },
+      { readonly value: number },
+      never,
+      { readonly value: number }
+    > = {
+      initialState: (props) => ({ value: props.value }),
+      onPropsChanged: (oldProps, newProps) => {
+        childPropsChanges.push({ oldValue: oldProps.value, newValue: newProps.value });
+        return { value: newProps.value };
+      },
+      render: (_props, state) => ({ value: state.value }),
+    };
+
+    const parentWorkflow: Workflow<ParentProps, ParentState, never, ParentRenderingWithChildState> = {
+      initialState: () => ({ childOutputs: [] }),
+      render: (props, _state, ctx) => {
+        const child = ctx.renderChild(childWithPropsHook, props.child, 'stable-child');
+        return { childValue: child.value };
+      },
+    };
+
+    const runtime = createRuntime(parentWorkflow, { page: 1, child: { value: 10 } }, {
+      propsEqual: (prev, next) => JSON.stringify(prev) === JSON.stringify(next),
+    });
+
+    expect(runtime.getRendering().childValue).toBe(10);
+    runtime.updateProps({ page: 2, child: { value: 10 } });
+    expect(runtime.getRendering().childValue).toBe(10);
+    expect(childPropsChanges).toEqual([]);
+
     runtime.dispose();
   });
 

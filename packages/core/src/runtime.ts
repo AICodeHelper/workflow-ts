@@ -18,6 +18,12 @@ export type LogLevel = 'log' | 'warn' | 'error';
 export type DebugLogger = (level: LogLevel, message: string, data?: unknown) => void;
 
 /**
+ * Comparator for props equality checks.
+ * Returning true means props are considered unchanged.
+ */
+export type PropsComparator<P> = (prev: P, next: P) => boolean;
+
+/**
  * Default debug logger that uses console
  */
 const defaultLogger: DebugLogger = (level, message, data) => {
@@ -55,6 +61,8 @@ export interface RuntimeConfig<P, S, O, R> {
   readonly interceptors?: readonly Interceptor<S, O>[] | undefined;
   /** Optional devtools for debugging/monitoring */
   readonly devTools?: DevTools<S, O, R> | undefined;
+  /** Optional props comparator. Defaults to Object.is */
+  readonly propsEqual?: PropsComparator<P> | undefined;
 }
 
 /**
@@ -70,6 +78,8 @@ export class WorkflowRuntime<P, S, O, R> {
   private state: S;
   private cachedRendering: R | null = null;
   private currentProps: P;
+  private lastRenderedProps: P;
+  private hasPendingPropsChange = false;
   private readonly listeners = new Set<(rendering: R) => void>();
   private readonly workerManager = new WorkerManager();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,6 +99,7 @@ export class WorkflowRuntime<P, S, O, R> {
 
   private readonly debug: DebugLogger | null;
   private readonly devTools: RuntimeDevTools<S, O, R> | null;
+  private readonly propsEqual: PropsComparator<P>;
 
   constructor(private readonly config: RuntimeConfig<P, S, O, R>) {
     // Initialize debug logger
@@ -108,6 +119,8 @@ export class WorkflowRuntime<P, S, O, R> {
 
     this.state = config.initialState ?? restoredState ?? config.workflow.initialState(config.props);
     this.currentProps = config.props;
+    this.lastRenderedProps = config.props;
+    this.propsEqual = config.propsEqual ?? Object.is;
 
     this.debug?.('log', 'Runtime initialized', { initialState: this.state });
 
@@ -166,10 +179,11 @@ export class WorkflowRuntime<P, S, O, R> {
    */
   public updateProps(props: P): void {
     this.assertNotDisposed();
-    if (Object.is(this.currentProps, props)) {
+    if (this.propsEqual(this.currentProps, props)) {
       return;
     }
     this.currentProps = props;
+    this.hasPendingPropsChange = true;
     this.cachedRendering = null;
     // DevTools: log props update
     this.devTools?._log({
@@ -292,6 +306,8 @@ export class WorkflowRuntime<P, S, O, R> {
   // ============================================================
 
   private performRender(): R {
+    this.applyPendingPropsChange();
+
     // Begin worker render cycle - track which workers are used
     this.workerManager.beginRenderCycle();
     // Reset touched children tracking
@@ -351,6 +367,33 @@ export class WorkflowRuntime<P, S, O, R> {
       renderChild: renderChildFn,
       runWorker: runWorkerFn,
     };
+  }
+
+  private applyPendingPropsChange(): void {
+    if (!this.hasPendingPropsChange) {
+      return;
+    }
+
+    if (this.config.workflow.onPropsChanged !== undefined) {
+      const nextState = this.config.workflow.onPropsChanged(
+        this.lastRenderedProps,
+        this.currentProps,
+        this.state,
+      );
+
+      if (nextState !== this.state) {
+        this.devTools?._log({
+          type: 'stateChange',
+          prevState: this.state,
+          newState: nextState,
+        });
+        this.state = nextState;
+        this.devTools?._setCurrentState(this.state);
+      }
+    }
+
+    this.lastRenderedProps = this.currentProps;
+    this.hasPendingPropsChange = false;
   }
 
   private handleAction(action: Action<S, O>): void {
@@ -534,6 +577,7 @@ export class WorkflowRuntime<P, S, O, R> {
       child = new WorkflowRuntime<CP, CS, CO, CR>({
         workflow,
         props,
+        propsEqual: this.config.propsEqual as PropsComparator<CP> | undefined,
         onOutput: (output: CO) => {
           this.debug?.('log', 'Child output', { childKey, output });
           this.getOutputHandler(childKey)?.(output);

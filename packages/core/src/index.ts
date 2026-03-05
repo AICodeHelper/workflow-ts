@@ -26,6 +26,7 @@ export {
   WorkflowRuntime,
   createRuntime,
   type RuntimeConfig,
+  type PropsComparator,
   type DebugLogger,
   type LogLevel,
 } from './runtime';

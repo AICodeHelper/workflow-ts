@@ -19,6 +19,9 @@ interface Workflow<P, S, O, R> {
   // Create initial state from props
   initialState: (props: P, snapshot?: string) => S;
   
+  // Optional: update state when props change (called before render)
+  onPropsChanged?: (oldProps: P, newProps: P, state: S) => S;
+  
   // Render current state into a rendering
   render: (props: P, state: S, context: RenderContext<S, O>) => R;
   
@@ -92,6 +95,11 @@ const runtime = createRuntime(workflow, props, {
   }
 });
 
+// Optional: value-based props equality (Kotlin-like == semantics)
+const runtime = createRuntime(workflow, props, {
+  propsEqual: (prev, next) => JSON.stringify(prev) === JSON.stringify(next),
+});
+
 // Legacy: still supports callback as third argument (backwards compatible)
 const runtime = createRuntime(workflow, props, (output) => {
   console.log('Output:', output);
@@ -108,6 +116,7 @@ const runtime = createRuntime(workflow, props, (output) => {
   - `debug?: boolean | DebugLogger` - Enable debug logging
   - `interceptors?: readonly Interceptor<S, O>[]` - Observe/modify action processing
   - `devTools?: DevTools<S, O, R>` - Runtime inspection and event logging
+  - `propsEqual?: (prev: P, next: P) => boolean` - Props equality comparator used by `updateProps` and `onPropsChanged` (defaults to `Object.is`)
 
 ```typescript
 // Get current rendering
@@ -134,7 +143,7 @@ The runtime class returned by `createRuntime`.
 | `getState()` | Get current state (for debugging) |
 | `getProps()` | Get current props |
 | `subscribe(listener)` | Subscribe to rendering changes. Returns unsubscribe function. |
-| `updateProps(props)` | Update props (triggers re-render) |
+| `updateProps(props)` | Update props and trigger re-render when `propsEqual(prev, next)` is `false` |
 | `send(action)` | Send an action directly |
 | `on(type, handler)` | Subscribe to a specific output type (`{ type: string }` outputs) |
 | `off(type, handler?)` | Unsubscribe typed output handlers |
