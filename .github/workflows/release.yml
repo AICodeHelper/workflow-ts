@@ -53,8 +53,9 @@ jobs:
 
       - name: Verify npm supports trusted publishing
         run: |
-          npm --version
-          node -e "const [major,minor,patch]=process.versions.npm.split('.').map(Number); const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))); if(!ok){console.error('npm 11.5.1+ is required for trusted publishing.'); process.exit(1);}"
+          NPM_VERSION="$(npm -v)"
+          echo "npm version: $NPM_VERSION"
+          node -e "const [major,minor,patch]=process.argv[1].split('.').map(Number); const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))); if(!ok){console.error('npm 11.5.1+ is required for trusted publishing.'); process.exit(1);}" "$NPM_VERSION"
 
       - name: Read and validate package versions
         id: versions
@@ -77,25 +78,34 @@ jobs:
           echo "release_sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
           echo "Preparing release $RELEASE_TAG for @workflow-ts/core@$CORE_VERSION and @workflow-ts/react@$REACT_VERSION"
 
-      - name: Ensure target versions and tag are not already published
+      - name: Check existing release artifacts
+        id: existing
         if: ${{ !inputs.dry_run }}
         run: |
+          CORE_PUBLISHED=false
+          REACT_PUBLISHED=false
+          TAG_EXISTS=false
+
           if npm view "@workflow-ts/core@${CORE_VERSION}" version >/dev/null 2>&1; then
-            echo "@workflow-ts/core@${CORE_VERSION} is already published."
-            exit 1
+            CORE_PUBLISHED=true
           fi
           if npm view "@workflow-ts/react@${REACT_VERSION}" version >/dev/null 2>&1; then
-            echo "@workflow-ts/react@${REACT_VERSION} is already published."
-            exit 1
+            REACT_PUBLISHED=true
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Git tag ${RELEASE_TAG} already exists on origin."
-            exit 1
+            TAG_EXISTS=true
           fi
-          echo "Target versions and release tag are available. Continuing."
+
+          echo "core_published=${CORE_PUBLISHED}" >> "$GITHUB_OUTPUT"
+          echo "react_published=${REACT_PUBLISHED}" >> "$GITHUB_OUTPUT"
+          echo "tag_exists=${TAG_EXISTS}" >> "$GITHUB_OUTPUT"
+
+          echo "@workflow-ts/core@${CORE_VERSION} published: ${CORE_PUBLISHED}"
+          echo "@workflow-ts/react@${REACT_VERSION} published: ${REACT_PUBLISHED}"
+          echo "Git tag ${RELEASE_TAG} exists: ${TAG_EXISTS}"
 
       - name: Publish @workflow-ts/core
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && steps.existing.outputs.core_published != 'true' }}
         working-directory: packages/core
         run: pnpm publish --provenance --access public --no-git-checks
 
@@ -105,7 +115,7 @@ jobs:
         run: pnpm publish --access public --no-git-checks --dry-run
 
       - name: Publish @workflow-ts/react
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && steps.existing.outputs.react_published != 'true' }}
         working-directory: packages/react
         run: pnpm publish --provenance --access public --no-git-checks
 
@@ -127,7 +137,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Create and push release tag
+      - name: Ensure release tag exists and matches published commit
         run: |
           RELEASE_TAG="${{ needs.publish.outputs.release_tag }}"
           RELEASE_SHA="${{ needs.publish.outputs.release_sha }}"
@@ -137,8 +147,14 @@ jobs:
             exit 1
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
-            echo "Tag ${RELEASE_TAG} already exists."
-            exit 1
+            git fetch origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}" --force
+            TAG_TARGET="$(git rev-list -n 1 "${RELEASE_TAG}")"
+            if [ "${TAG_TARGET}" != "${RELEASE_SHA}" ]; then
+              echo "Tag ${RELEASE_TAG} points to ${TAG_TARGET}, expected ${RELEASE_SHA}."
+              exit 1
+            fi
+            echo "Tag ${RELEASE_TAG} already exists and points to ${RELEASE_SHA}. Skipping creation."
+            exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -149,6 +165,10 @@ jobs:
         run: |
           RELEASE_TAG="${{ needs.publish.outputs.release_tag }}"
           RELEASE_SHA="${{ needs.publish.outputs.release_sha }}"
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "GitHub Release ${RELEASE_TAG} already exists. Skipping creation."
+            exit 0
+          fi
           gh release create "${RELEASE_TAG}" \
             --verify-tag \
             --target "${RELEASE_SHA}" \

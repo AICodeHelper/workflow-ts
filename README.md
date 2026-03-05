@@ -22,15 +22,6 @@ pnpm add @workflow-ts/core
 pnpm add @workflow-ts/react
 ```
 
-## New here?
-
-Use this path for the fastest onboarding:
-
-1. [When to Use Workflow-ts](./docs/guides/when-to-use.md)
-2. [First 15 Minutes](./docs/guides/first-15-minutes.md)
-3. [Concept Map](./docs/guides/concept-map.md)
-4. [Recipes](./docs/guides/recipes.md)
-
 ## Quick Start: One Cohesive Example
 
 This example models a small "load profile" flow and is reused in the concept snippets below.

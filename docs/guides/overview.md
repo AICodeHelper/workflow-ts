@@ -1,12 +1,6 @@
 # Overview
 
 Workflow-ts is a TypeScript implementation of Square’s Workflow architecture: explicit state machines, unidirectional data flow, and composable renderings.
-
-## Start here
-
-- [First 15 Minutes](./first-15-minutes.md)
-- [Concept Map](./concept-map.md)
-
 ## Core ideas
 
 - **Props** are inputs from parents.
