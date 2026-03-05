@@ -3,6 +3,7 @@ import type { Workflow } from '@workflow-ts/core';
 import { StrictMode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { AllowedProp } from '../src/useWorkflow';
 import { useWorkflow, useWorkflowWithState } from '../src/useWorkflow';
 
 const flushTimers = async (): Promise<void> => {
@@ -154,6 +155,13 @@ const classPropsWorkflow: Workflow<SearchQueryProps, null, never, ClassRendering
   initialState: () => null,
   render: (props): ClassRendering => ({
     query: props.query,
+  }),
+};
+
+const anyPropsWorkflow: Workflow<{ value: AllowedProp }, null, never, { value: AllowedProp }> = {
+  initialState: () => null,
+  render: (props) => ({
+    value: props.value,
   }),
 };
 
@@ -319,22 +327,62 @@ describe('useWorkflow', () => {
     unmount();
   });
 
-  it('should support class-instance props and reflect field mutations', () => {
+  it('should throw for class-instance props', () => {
     const queryProps = new SearchQueryProps('first');
 
-    const { result, rerender, unmount } = renderHook(
-      ({ props }) => useWorkflow(classPropsWorkflow, props),
-      { initialProps: { props: queryProps } },
-    );
+    expect(() => {
+      renderHook(() =>
+        useWorkflow<any, null, never, ClassRendering>(
+          classPropsWorkflow as unknown as Workflow<any, null, never, ClassRendering>,
+          queryProps,
+        ),
+      );
+    }).toThrowError(/Unsupported workflow props at "props": SearchQueryProps/);
+  });
 
-    expect(result.current.query).toBe('first');
+  it('should throw for nested unsupported branded objects with path details', () => {
+    const props = {
+      value: {
+        payload: {
+          resource: new URL('https://example.com'),
+        },
+      },
+    };
 
-    queryProps.query = 'second';
-    rerender({ props: queryProps });
+    expect(() => {
+      renderHook(() => useWorkflow(anyPropsWorkflow, props));
+    }).toThrowError(/Unsupported workflow props at "props\.value\.payload\.resource": URL/);
+  });
 
-    expect(result.current.query).toBe('second');
+  it('should throw for Promise, WeakMap, and WeakSet props', () => {
+    const unsupportedValues = [Promise.resolve(1), new WeakMap(), new WeakSet()];
 
-    unmount();
+    for (const unsupportedValue of unsupportedValues) {
+      expect(() => {
+        renderHook(() =>
+          useWorkflow(anyPropsWorkflow, {
+            value: unsupportedValue as unknown as AllowedProp,
+          }),
+        );
+      }).toThrowError(/Unsupported workflow props at "props\.value"/);
+    }
+  });
+
+  it('should skip unsupported prop validation when NODE_ENV is production', () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      const url = new URL('https://example.com');
+      const { result, unmount } = renderHook(() =>
+        useWorkflow(anyPropsWorkflow, { value: url as unknown as AllowedProp }),
+      );
+
+      expect(result.current.value).toBe(url);
+      unmount();
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 
   it('should dispose runtime on unmount', () => {
@@ -733,6 +781,35 @@ describe('useWorkflowWithState', () => {
     });
     expect(result.current.rendering.value).toBe(8);
     expect(result.current.props.initial).toBe(8);
+
+    unmount();
+  });
+
+  it('should throw for class-instance initial props', () => {
+    const initialProps = new SearchQueryProps('first');
+
+    expect(() => {
+      renderHook(() =>
+        useWorkflowWithState<any, null, never, ClassRendering>(
+          classPropsWorkflow as unknown as Workflow<any, null, never, ClassRendering>,
+          { props: initialProps },
+        ),
+      );
+    }).toThrowError(/Unsupported workflow props at "props": SearchQueryProps/);
+  });
+
+  it('should throw for unsupported props passed to updateProps', () => {
+    const { result, unmount } = renderHook(() =>
+      useWorkflowWithState(anyPropsWorkflow, { props: { value: 'ok' } }),
+    );
+
+    expect(() => {
+      act(() => {
+        result.current.updateProps({
+          value: new Error('boom') as unknown as AllowedProp,
+        } as { value: AllowedProp });
+      });
+    }).toThrowError(/Unsupported workflow props at "props\.value": Error/);
 
     unmount();
   });

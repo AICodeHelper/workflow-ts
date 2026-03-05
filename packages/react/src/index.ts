@@ -2,4 +2,10 @@
 // React bindings for workflow-ts
 
 export { useWorkflow, useWorkflowWithState } from './useWorkflow';
-export type { UseWorkflowOptions, UseWorkflowResult } from './useWorkflow';
+export type {
+  AllowedProp,
+  AllowedPropPrimitive,
+  AllowedTypedArray,
+  UseWorkflowOptions,
+  UseWorkflowResult,
+} from './useWorkflow';
