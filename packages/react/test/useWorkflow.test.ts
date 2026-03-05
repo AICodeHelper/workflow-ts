@@ -437,6 +437,72 @@ describe('useWorkflow', () => {
     unmount();
   });
 
+  it('should preserve cycle context when comparing reordered set members', () => {
+    interface CyclicSetNode {
+      id: number;
+      peer: CyclicSetNode;
+      owner: CyclicSetProps;
+    }
+
+    interface CyclicSetProps {
+      readonly marker: {
+        readonly label: string;
+      };
+      readonly nodes: Set<CyclicSetNode>;
+    }
+
+    interface CyclicSetRendering {
+      readonly renderCount: number;
+    }
+
+    const createCyclicSetProps = (order: readonly [number, number]): CyclicSetProps => {
+      const props = {
+        marker: { label: 'root' },
+        nodes: new Set<CyclicSetNode>(),
+      } as CyclicSetProps;
+      const nodeOne = { id: 1 } as CyclicSetNode;
+      const nodeTwo = { id: 2 } as CyclicSetNode;
+      nodeOne.peer = nodeTwo;
+      nodeTwo.peer = nodeOne;
+      nodeOne.owner = props;
+      nodeTwo.owner = props;
+
+      if (order[0] === 1) {
+        props.nodes.add(nodeOne);
+      } else {
+        props.nodes.add(nodeTwo);
+      }
+
+      if (order[1] === 1) {
+        props.nodes.add(nodeOne);
+      } else {
+        props.nodes.add(nodeTwo);
+      }
+
+      return props;
+    };
+
+    let renderCount = 0;
+    const cyclicSetWorkflow: Workflow<CyclicSetProps, null, never, CyclicSetRendering> = {
+      initialState: () => null,
+      render: () => ({
+        renderCount: ++renderCount,
+      }),
+    };
+
+    const { result, rerender, unmount } = renderHook(
+      ({ props }) => useWorkflow(cyclicSetWorkflow, props),
+      { initialProps: { props: createCyclicSetProps([1, 2]) } },
+    );
+
+    expect(result.current.renderCount).toBe(1);
+
+    rerender({ props: createCyclicSetProps([2, 1]) });
+    expect(result.current.renderCount).toBe(1);
+
+    unmount();
+  });
+
   it('should sync non-plain and deep prop mutations on same top-level reference', () => {
     const initialTimestamp = new Date('2026-01-01T00:00:00.000Z');
     const mutableProps: ComplexProps = {

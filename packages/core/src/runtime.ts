@@ -312,12 +312,16 @@ export class WorkflowRuntime<P, S, O, R> {
       this.workerManager.endRenderCycle();
 
       // Dispose any children that weren't rendered in this cycle
+      const keysToDelete: string[] = [];
       for (const [key, child] of this.childRuntimes) {
         if (!this.touchedChildren.has(key)) {
           child.dispose();
-          this.childRuntimes.delete(key);
+          keysToDelete.push(key);
         }
       }
+      keysToDelete.forEach((key) => {
+        this.childRuntimes.delete(key);
+      });
       this.touchedChildren.clear();
     }
 

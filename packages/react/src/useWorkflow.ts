@@ -271,18 +271,40 @@ const cloneRuntimeValue = (value: unknown): unknown => cloneValue(value, 'runtim
 
 const cloneComparableValue = (value: unknown): unknown => cloneValue(value, 'comparable');
 
-const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>()): boolean => {
+interface DeepEqualContext {
+  readonly seen: WeakMap<object, object>;
+  readonly seenPairs: Array<readonly [object, object]>;
+}
+
+const createDeepEqualContext = (): DeepEqualContext => ({
+  seen: new WeakMap<object, object>(),
+  seenPairs: [],
+});
+
+const cloneDeepEqualContext = (context: DeepEqualContext): DeepEqualContext => {
+  const seen = new WeakMap<object, object>();
+  for (const [source, target] of context.seenPairs) {
+    seen.set(source, target);
+  }
+  return {
+    seen,
+    seenPairs: [...context.seenPairs],
+  };
+};
+
+const deepEqual = (a: unknown, b: unknown, context = createDeepEqualContext()): boolean => {
   if (Object.is(a, b)) return true;
   if (!isObjectLike(a) || !isObjectLike(b)) return false;
   if (a instanceof WeakMap || b instanceof WeakMap || a instanceof WeakSet || b instanceof WeakSet) {
     return false;
   }
 
-  const seenTarget = seen.get(a);
+  const seenTarget = context.seen.get(a);
   if (seenTarget !== undefined) {
     return seenTarget === b;
   }
-  seen.set(a, b);
+  context.seen.set(a, b);
+  context.seenPairs.push([a, b]);
 
   if (a instanceof Date || b instanceof Date) {
     if (!(a instanceof Date) || !(b instanceof Date)) return false;
@@ -302,8 +324,8 @@ const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>())
     let index = 0;
     for (const [aKey, aValue] of a.entries()) {
       const [bKey, bValue] = bEntries[index] ?? [];
-      if (!deepEqual(aKey, bKey, seen)) return false;
-      if (!deepEqual(aValue, bValue, seen)) return false;
+      if (!deepEqual(aKey, bKey, context)) return false;
+      if (!deepEqual(aValue, bValue, context)) return false;
       index += 1;
     }
     return true;
@@ -317,7 +339,7 @@ const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>())
     for (const aValue of a.values()) {
       let matchedIndex = -1;
       for (let i = 0; i < unmatchedValues.length; i += 1) {
-        if (deepEqual(aValue, unmatchedValues[i], new WeakMap<object, object>())) {
+        if (deepEqual(aValue, unmatchedValues[i], cloneDeepEqualContext(context))) {
           matchedIndex = i;
           break;
         }
@@ -331,7 +353,7 @@ const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>())
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     for (let i = 0; i < a.length; i += 1) {
-      if (!deepEqual(a[i], b[i], seen)) return false;
+      if (!deepEqual(a[i], b[i], context)) return false;
     }
     return true;
   }
@@ -366,7 +388,7 @@ const deepEqual = (a: unknown, b: unknown, seen = new WeakMap<object, object>())
 
   for (const key of aKeys) {
     if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
-    if (!deepEqual(a[key], b[key], seen)) return false;
+    if (!deepEqual(a[key], b[key], context)) return false;
   }
 
   return true;

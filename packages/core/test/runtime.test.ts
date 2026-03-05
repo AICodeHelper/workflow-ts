@@ -638,6 +638,76 @@ describe('Child workflow lifecycle', () => {
     runtime.dispose();
   });
 
+  it('should dispose all untouched children in a single render pass', () => {
+    interface ParentProps {
+      readonly showSecond: boolean;
+      readonly showThird: boolean;
+    }
+
+    interface ParentRenderingWithMultipleChildren {
+      readonly incrementSecond?: () => void;
+      readonly incrementThird?: () => void;
+    }
+
+    const outputtingChildWorkflow: Workflow<number, ChildState, ChildOutput, ChildRendering> = {
+      initialState: (props) => ({ value: props }),
+      render: (_props, state, ctx) => ({
+        value: state.value,
+        onIncrement: () => {
+          ctx.actionSink.send((s) => ({
+            state: { value: s.value + 1 },
+            output: { type: 'childDone', value: s.value + 1 },
+          }));
+        },
+      }),
+    };
+
+    const parentWorkflow: Workflow<
+      ParentProps,
+      ParentState,
+      never,
+      ParentRenderingWithMultipleChildren
+    > = {
+      initialState: () => ({ childOutputs: [] }),
+      render: (props, _state, ctx) => {
+        ctx.renderChild(childWorkflow, 0, 'first');
+        const second = props.showSecond
+          ? ctx.renderChild(outputtingChildWorkflow, 0, 'second', (output) => (s) => ({
+              state: { childOutputs: [...s.childOutputs, output.value] },
+            }))
+          : undefined;
+        const third = props.showThird
+          ? ctx.renderChild(outputtingChildWorkflow, 0, 'third', (output) => (s) => ({
+              state: { childOutputs: [...s.childOutputs, 100 + output.value] },
+            }))
+          : undefined;
+
+        return {
+          incrementSecond: second?.onIncrement,
+          incrementThird: third?.onIncrement,
+        };
+      },
+    };
+
+    const runtime = createRuntime(parentWorkflow, { showSecond: true, showThird: true });
+
+    const initialRendering = runtime.getRendering();
+    initialRendering.incrementSecond?.();
+    initialRendering.incrementThird?.();
+    expect(runtime.getState().childOutputs).toEqual([1, 101]);
+
+    runtime.updateProps({ showSecond: false, showThird: false });
+    runtime.getRendering();
+
+    runtime.updateProps({ showSecond: true, showThird: true });
+    const restoredRendering = runtime.getRendering();
+    restoredRendering.incrementSecond?.();
+    restoredRendering.incrementThird?.();
+    expect(runtime.getState().childOutputs).toEqual([1, 101, 1, 101]);
+
+    runtime.dispose();
+  });
+
   it('should use fallback workflow key when workflow is circular', () => {
     const workflow: Workflow<number, { value: number }, never, { value: number }> = {
       initialState: (props) => ({ value: props }),
