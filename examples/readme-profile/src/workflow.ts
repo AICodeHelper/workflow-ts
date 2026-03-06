@@ -25,7 +25,9 @@ type LoadProfileResult =
 
 const loadProfileWorker = createWorker<LoadProfileResult>('load-profile', async (signal) => {
   await new Promise<void>((resolve) => {
-    const timer = setTimeout(() => resolve(), 5);
+    const timer = setTimeout(() => {
+      resolve();
+    }, 5);
     signal.addEventListener('abort', () => {
       clearTimeout(timer);
       resolve();
@@ -55,21 +57,31 @@ export const profileWorkflow: Workflow<Props, State, Output, Rendering> = {
       case 'loading':
         return {
           type: 'loading',
-          close: () => ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } })),
+          close: () => {
+            ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } }));
+          },
         };
       case 'loaded':
         return {
           type: 'loaded',
           name: state.name,
-          reload: () => ctx.actionSink.send(() => ({ state: { type: 'loading' } })),
-          close: () => ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } })),
+          reload: () => {
+            ctx.actionSink.send(() => ({ state: { type: 'loading' } }));
+          },
+          close: () => {
+            ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } }));
+          },
         };
       case 'error':
         return {
           type: 'error',
           message: state.message,
-          retry: () => ctx.actionSink.send(() => ({ state: { type: 'loading' } })),
-          close: () => ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } })),
+          retry: () => {
+            ctx.actionSink.send(() => ({ state: { type: 'loading' } }));
+          },
+          close: () => {
+            ctx.actionSink.send((s) => ({ state: s, output: { type: 'closed' } }));
+          },
         };
     }
   },

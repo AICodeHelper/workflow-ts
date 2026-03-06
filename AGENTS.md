@@ -18,6 +18,7 @@ Keep source in `src/` and place tests in `test/` using `*.test.ts` naming.
 - `pnpm lint` / `pnpm lint:fix`: run ESLint checks or auto-fix issues.
 - `pnpm format` / `pnpm format:check`: apply or verify Prettier formatting.
 - `pnpm ci`: local equivalent of CI gates (`typecheck`, `lint`, `test`, `build`).
+- After every code change, run `pnpm ci` before creating or updating a PR to ensure CI checks pass.
 
 Example: run only React package tests with `pnpm --filter @workflow-ts/react test`.
 

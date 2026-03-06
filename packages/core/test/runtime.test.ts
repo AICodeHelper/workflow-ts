@@ -1930,12 +1930,12 @@ describe('Interceptors', () => {
     });
 
     it('should call onStateChange for action-driven transitions with metadata', () => {
-      const changes: Array<{
+      const changes: {
         readonly prevCount: number;
         readonly nextCount: number;
         readonly reason: string;
         readonly actionName?: string;
-      }> = [];
+      }[] = [];
       const namedIncrement = named('increment', (state: { count: number }) => ({
         state: { count: state.count + 1 },
       }));
@@ -1985,7 +1985,7 @@ describe('Interceptors', () => {
 
     it('should call onStateChange for props-driven transitions even when filter exists', () => {
       const observedReasons: string[] = [];
-      const observedActionNames: Array<string | undefined> = [];
+      const observedActionNames: (string | undefined)[] = [];
       const workflow: Workflow<
         string,
         { readonly value: string },

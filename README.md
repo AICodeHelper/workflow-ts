@@ -315,6 +315,18 @@ See [examples/](./examples):
 - [@workflow-ts/core API](./packages/core/README.md)
 - [@workflow-ts/react API](./packages/react/README.md)
 
+## AI agent Skill
+
+Install the workflow-ts skill with the `skills` CLI:
+
+```bash
+npx skills add BenedictP/workflow-ts
+```
+
+Then use the skill in prompts as `$workflow-ts-architecture`.
+
+Docs: [Skills CLI](https://skills.sh/docs/cli), [FAQ](https://skills.sh/docs/faq), [Overview](https://skills.sh/docs)
+
 ## Development
 
 ```bash
