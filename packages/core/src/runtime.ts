@@ -1,5 +1,5 @@
 import type { DevTools, RuntimeDevTools } from './devtools';
-import type { Interceptor } from './interceptor';
+import type { Interceptor, InterceptorStateChange } from './interceptor';
 import type { Action, RenderContext, Worker, Workflow } from './types';
 import { WorkerManager } from './worker';
 
@@ -113,8 +113,7 @@ export class WorkflowRuntime<P, S, O, R> {
 
     const restoredState =
       config.snapshot !== undefined
-        ? (config.workflow.restore?.(config.snapshot) ??
-          config.workflow.initialState(config.props, config.snapshot))
+        ? config.workflow.initialState(config.props, config.snapshot)
         : undefined;
 
     this.state = config.initialState ?? restoredState ?? config.workflow.initialState(config.props);
@@ -375,16 +374,31 @@ export class WorkflowRuntime<P, S, O, R> {
     }
 
     if (this.config.workflow.onPropsChanged !== undefined) {
+      const interceptors = this.config.interceptors ?? [];
+      const prevState = this.state;
       const nextState = this.config.workflow.onPropsChanged(
         this.lastRenderedProps,
         this.currentProps,
-        this.state,
+        prevState,
       );
 
-      if (nextState !== this.state) {
+      if (nextState !== prevState) {
+        const context = {
+          state: prevState,
+          props: this.currentProps,
+          workflowKey: '',
+        };
+        const change: InterceptorStateChange<S, O> = {
+          reason: 'propsChanged',
+          prevState,
+          nextState,
+        };
+        for (const interceptor of interceptors) {
+          interceptor.config.onStateChange?.(change, context);
+        }
         this.devTools?._log({
           type: 'stateChange',
-          prevState: this.state,
+          prevState,
           newState: nextState,
         });
         this.state = nextState;
@@ -397,7 +411,7 @@ export class WorkflowRuntime<P, S, O, R> {
   }
 
   private handleAction(action: Action<S, O>): void {
-    if (this.disposed) return;  // Silently ignore actions after disposal
+    if (this.disposed) return; // Silently ignore actions after disposal
 
     if (this.isRendering || this.isProcessingActions) {
       this.actionQueue.push(action);
@@ -451,13 +465,10 @@ export class WorkflowRuntime<P, S, O, R> {
       // Execute action
       result = action(this.state);
 
-      // Call onResult interceptors (can modify result)
+      // Call onResult interceptors
       for (const interceptor of interceptors) {
         if (interceptor.config.filter?.(action) === false) continue;
-        const override = interceptor.config.onResult?.(action, result, context);
-        if (override !== undefined) {
-          result = override;
-        }
+        interceptor.config.onResult?.(action, result, context);
       }
     } catch (error) {
       // Call onError interceptors
@@ -489,9 +500,21 @@ export class WorkflowRuntime<P, S, O, R> {
     });
 
     if (result.state !== this.state) {
+      const prevState = this.state;
+      const change: InterceptorStateChange<S, O> = {
+        reason: 'action',
+        prevState,
+        nextState: result.state,
+        action,
+        actionName,
+      };
+      for (const interceptor of interceptors) {
+        if (interceptor.config.filter?.(action) === false) continue;
+        interceptor.config.onStateChange?.(change, context);
+      }
       this.devTools?._log({
         type: 'stateChange',
-        prevState: this.state,
+        prevState,
         newState: result.state,
       });
     }

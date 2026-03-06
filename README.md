@@ -110,6 +110,7 @@ export const profileWorkflow: Workflow<Props, State, Output, Rendering> = {
 <!-- README_SNIPPET:workflow:end -->
 
 Deep dive: [Overview](./docs/guides/overview.md), [Workers](./docs/guides/workers.md)
+Worker lifecycle notes include keyed side-effect semantics and one-shot analytics/idempotency patterns.
 
 ### 2. Subscribe in React (`@workflow-ts/react`)
 
