@@ -100,6 +100,7 @@ export class WorkflowRuntime<P, S, O, R> {
   private readonly debug: DebugLogger | null;
   private readonly devTools: RuntimeDevTools<S, O, R> | null;
   private readonly propsEqual: PropsComparator<P>;
+  private readonly workflowKey: string;
 
   constructor(private readonly config: RuntimeConfig<P, S, O, R>) {
     // Initialize debug logger
@@ -120,6 +121,7 @@ export class WorkflowRuntime<P, S, O, R> {
     this.currentProps = config.props;
     this.lastRenderedProps = config.props;
     this.propsEqual = config.propsEqual ?? Object.is;
+    this.workflowKey = this.getWorkflowKey(config.workflow);
 
     this.debug?.('log', 'Runtime initialized', { initialState: this.state });
 
@@ -386,7 +388,7 @@ export class WorkflowRuntime<P, S, O, R> {
         const context = {
           state: prevState,
           props: this.currentProps,
-          workflowKey: '',
+          workflowKey: this.workflowKey,
         };
         const change: InterceptorStateChange<S, O> = {
           reason: 'propsChanged',
@@ -446,7 +448,7 @@ export class WorkflowRuntime<P, S, O, R> {
     const context = {
       state: this.state,
       props: this.currentProps,
-      workflowKey: '',
+      workflowKey: this.workflowKey,
     };
 
     // DevTools: log action send

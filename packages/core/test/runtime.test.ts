@@ -1914,6 +1914,34 @@ describe('Interceptors', () => {
       runtime.dispose();
     });
 
+    it('should provide stable non-empty workflowKey for action-driven interceptor hooks', () => {
+      const onSendKeys: string[] = [];
+      const onStateChangeKeys: string[] = [];
+      const interceptor = createInterceptor<{ count: number }, unknown>('workflow-key', {
+        onSend: (_action, context) => {
+          onSendKeys.push(context.workflowKey);
+        },
+        onStateChange: (change, context) => {
+          if (change.reason === 'action') {
+            onStateChangeKeys.push(context.workflowKey);
+          }
+        },
+      });
+
+      const runtime = createRuntime(counterWorkflow, undefined, { interceptors: [interceptor] });
+      runtime.send((state) => ({ state: { count: state.count + 1 } }));
+      runtime.send((state) => ({ state: { count: state.count + 1 } }));
+
+      expect(onSendKeys).toHaveLength(2);
+      expect(onStateChangeKeys).toHaveLength(2);
+
+      const workflowKey = onSendKeys[0];
+      expect(workflowKey.length).toBeGreaterThan(0);
+      expect(onSendKeys).toEqual([workflowKey, workflowKey]);
+      expect(onStateChangeKeys).toEqual([workflowKey, workflowKey]);
+      runtime.dispose();
+    });
+
     it('should call onResult interceptor', () => {
       const calls: { count: number }[] = [];
       const interceptor = createInterceptor<{ count: number }, unknown>('test', {
@@ -2013,6 +2041,39 @@ describe('Interceptors', () => {
 
       expect(observedReasons).toEqual(['propsChanged']);
       expect(observedActionNames).toEqual([undefined]);
+      runtime.dispose();
+    });
+
+    it('should provide stable non-empty workflowKey for props-driven state changes', () => {
+      const observedKeys: string[] = [];
+      const workflow: Workflow<
+        string,
+        { readonly value: string },
+        never,
+        { readonly value: string }
+      > = {
+        initialState: (props) => ({ value: props }),
+        onPropsChanged: (_oldProps, newProps) => ({ value: `${newProps}!` }),
+        render: (_props, state) => ({ value: state.value }),
+      };
+      const interceptor = createInterceptor<{ readonly value: string }, never>('props-change-key', {
+        onStateChange: (change, context) => {
+          if (change.reason === 'propsChanged') {
+            observedKeys.push(context.workflowKey);
+          }
+        },
+      });
+
+      const runtime = createRuntime(workflow, 'a', { interceptors: [interceptor] });
+      runtime.getRendering();
+      runtime.updateProps('b');
+      runtime.getRendering();
+      runtime.updateProps('c');
+      runtime.getRendering();
+
+      expect(observedKeys).toHaveLength(2);
+      expect(observedKeys[0].length).toBeGreaterThan(0);
+      expect(observedKeys).toEqual([observedKeys[0], observedKeys[0]]);
       runtime.dispose();
     });
 

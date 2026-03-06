@@ -30,6 +30,9 @@ Each interceptor can hook into:
 
 Use this to keep action functions pure while handling side effects externally.
 
+Interceptor `context` includes `workflowKey`, a stable identifier for the runtime instance that
+processed the event.
+
 `onStateChange` includes a `reason`:
 
 - `'action'`: state changed from action processing. Includes `action` and optional `actionName`.
