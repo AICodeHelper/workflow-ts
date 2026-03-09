@@ -13,8 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added README badges for CI status, per-package bundle size (`@workflow-ts/core`, `@workflow-ts/react`), and per-package npm versions.
 - Switched bundle-size badges to Shields-hosted images after BundleJS badge images failed to render reliably in GitHub README views.
 - Updated npm version badge labels to display the package names (`@workflow-ts/core` and `@workflow-ts/react`) directly on the badges.
-
-
+- Added a Quick Start high-level architecture section in the README with the new `docs/WorkflowArchitecture-dark.png` diagram and an overview paragraph of props/state/rendering/actions/workers/output flow.
 
 ## [0.1.2] - 2026-03-09
 

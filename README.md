@@ -33,6 +33,12 @@ pnpm add @workflow-ts/react
 This example models a small "load profile" flow and is reused in the concept snippets below.
 Canonical runnable source: [`examples/readme-profile`](./examples/readme-profile).
 
+### 0. High-Level Architecture
+
+![workflow-ts architecture overview](./docs/WorkflowArchitecture-dark.png)
+
+At a high level, `Props` enter a workflow runtime, the runtime stores explicit `State`, and each `render` call returns a framework-agnostic `Rendering` (data + callbacks). UI callbacks send `Actions` back into the runtime to transition state, `Workers` feed async results into the same action loop, and optional `Output` values bubble events to the parent workflow or hosting screen.
+
 ### 1. Define the workflow (`@workflow-ts/core`)
 
 <!-- README_SNIPPET:workflow:start -->
