@@ -1099,6 +1099,73 @@ describe('Multiple listeners', () => {
     runtime.dispose();
   });
 
+  it('should notify from a snapshot when a listener unsubscribes another listener', () => {
+    const runtime = createRuntime(counterWorkflow, undefined);
+    const values: number[] = [];
+
+    let unsubscribeSecond = () => {};
+    const unsubscribeFirst = runtime.subscribe((r) => {
+      values.push(r.count);
+      unsubscribeSecond();
+    });
+
+    unsubscribeSecond = runtime.subscribe((r) => {
+      values.push(r.count * 10);
+    });
+
+    runtime.getRendering().onIncrement();
+    expect(values).toEqual([1, 10]);
+
+    runtime.getRendering().onIncrement();
+    expect(values).toEqual([1, 10, 2]);
+
+    unsubscribeFirst();
+    runtime.dispose();
+  });
+
+  it('should defer newly subscribed listeners until the next notification cycle', () => {
+    const runtime = createRuntime(counterWorkflow, undefined);
+    const values: string[] = [];
+
+    let subscribed = false;
+    let unsubscribeLate = () => {};
+
+    runtime.subscribe((r) => {
+      values.push(`first:${r.count}`);
+      if (subscribed) return;
+      subscribed = true;
+      unsubscribeLate = runtime.subscribe((next) => {
+        values.push(`late:${next.count}`);
+      });
+    });
+
+    runtime.getRendering().onIncrement();
+    runtime.getRendering().onIncrement();
+
+    expect(values).toEqual(['first:1', 'first:2', 'late:2']);
+
+    unsubscribeLate();
+    runtime.dispose();
+  });
+
+  it('should stop notifying remaining listeners when disposed during notification', () => {
+    const runtime = createRuntime(counterWorkflow, undefined);
+    const values: string[] = [];
+
+    runtime.subscribe((r) => {
+      values.push(`first:${r.count}`);
+      runtime.dispose();
+    });
+    runtime.subscribe((r) => {
+      values.push(`second:${r.count}`);
+    });
+
+    runtime.getRendering().onIncrement();
+
+    expect(values).toEqual(['first:1']);
+    expect(runtime.isDisposed()).toBe(true);
+  });
+
   it('should handle subscriber that throws error', () => {
     const runtime = createRuntime(counterWorkflow, undefined);
     const successfulNotifications: number[] = [];
@@ -1457,6 +1524,48 @@ describe('Output type subscription', () => {
     expect(loadedOutputs).toHaveLength(1); // Should still be 1, not 2
 
     runtime.dispose();
+  });
+
+  it('should notify typed handlers from a snapshot when one handler unsubscribes another', () => {
+    const runtime = createRuntime(outputTestWorkflow, undefined);
+    const calls: string[] = [];
+
+    let unsubscribeSecond = () => {};
+    const unsubscribeFirst = runtime.on('loaded', (output) => {
+      calls.push(`first:${output.data}`);
+      unsubscribeSecond();
+    });
+
+    unsubscribeSecond = runtime.on('loaded', (output) => {
+      calls.push(`second:${output.data}`);
+    });
+
+    runtime.getRendering().emitLoaded();
+    expect(calls).toEqual(['first:test-data', 'second:test-data']);
+
+    runtime.getRendering().emitLoaded();
+    expect(calls).toEqual(['first:test-data', 'second:test-data', 'first:test-data']);
+
+    unsubscribeFirst();
+    runtime.dispose();
+  });
+
+  it('should stop notifying remaining typed handlers when disposed during emit', () => {
+    const runtime = createRuntime(outputTestWorkflow, undefined);
+    const calls: string[] = [];
+
+    runtime.on('loaded', () => {
+      calls.push('first');
+      runtime.dispose();
+    });
+    runtime.on('loaded', () => {
+      calls.push('second');
+    });
+
+    runtime.getRendering().emitLoaded();
+
+    expect(calls).toEqual(['first']);
+    expect(runtime.isDisposed()).toBe(true);
   });
 
   it('should remove all handlers for a type with off()', () => {

@@ -572,14 +572,18 @@ export class WorkflowRuntime<P, S, O, R> {
     const handlers = this.typedOutputHandlers.get(key);
     if (handlers === undefined || handlers.size === 0) return;
 
-    handlers.forEach((handler) => {
+    // Dispatch against a stable snapshot so subscribe/unsubscribe during emit
+    // only affects subsequent emits.
+    const handlersSnapshot = Array.from(handlers);
+    for (const handler of handlersSnapshot) {
+      if (this.isDisposed()) break;
       try {
         handler(output);
       } catch (error) {
         this.debug?.('error', 'Error in output handler', error);
         console.error('Error in output handler:', error);
       }
-    });
+    }
   }
 
   private renderChild<CP, CS, CO, CR>(
@@ -653,14 +657,18 @@ export class WorkflowRuntime<P, S, O, R> {
   private notifyListeners(): void {
     if (this.disposed) return;
     const rendering = this.getRendering();
-    this.listeners.forEach((listener) => {
+    // Dispatch against a stable snapshot so subscribe/unsubscribe during notify
+    // only affects subsequent notifications.
+    const listenersSnapshot = Array.from(this.listeners);
+    for (const listener of listenersSnapshot) {
       try {
         listener(rendering);
       } catch (error) {
         this.debug?.('error', 'Error in workflow listener', error);
         console.error('Error in workflow listener:', error);
       }
-    });
+      if (this.isDisposed()) break;
+    }
   }
 
   private assertNotDisposed(): void {
