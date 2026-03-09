@@ -93,16 +93,14 @@ export const createProfileWorkflow = (
   initialState: () => ({ type: 'loading' }),
 
   render: (_props, state, ctx) => {
-    if (state.type === 'loading') {
-      ctx.runWorker(workersProvider.loadProfileWorker, 'profile-load', (result) => () => ({
-        state: result.ok
-          ? { type: 'loaded', name: result.name }
-          : { type: 'error', message: result.message },
-      }));
-    }
-
     switch (state.type) {
       case 'loading':
+        ctx.runWorker(workersProvider.loadProfileWorker, 'profile-load', (result) => () => ({
+          state: result.ok
+            ? { type: 'loaded', name: result.name }
+            : { type: 'error', message: result.message },
+        }));
+
         return {
           type: 'loading',
           close: () => {
@@ -141,6 +139,7 @@ export const profileWorkflow = createProfileWorkflow();
 
 Deep dive: [Overview](./docs/guides/overview.md), [Workers](./docs/guides/workers.md)
 Worker lifecycle notes include keyed side-effect semantics and one-shot analytics/idempotency patterns.
+Render convention: keep `render` primarily as `switch (state.type)`. Use pre-switch code only for worker startup that must run in every state.
 
 ### 2. Subscribe in React (`@workflow-ts/react`)
 
@@ -269,14 +268,22 @@ More: [Overview](./docs/guides/overview.md), [React Integration](./docs/guides/r
 Workers run async tasks and are started/stopped by render calls:
 
 ```typescript
-if (state.type === 'loading') {
-  ctx.runWorker(loadProfileWorker, 'profile-load', (result) => () => ({
-    state: result.ok
-      ? { type: 'loaded', name: result.name }
-      : { type: 'error', message: result.message },
-  }));
+switch (state.type) {
+  case 'loading':
+    ctx.runWorker(loadProfileWorker, 'profile-load', (result) => () => ({
+      state: result.ok
+        ? { type: 'loaded', name: result.name }
+        : { type: 'error', message: result.message },
+    }));
+    return { type: 'loading' };
+  case 'loaded':
+    return { type: 'loaded', name: state.name };
+  case 'error':
+    return { type: 'error', message: state.message };
 }
 ```
+
+In full workflows, keep rendering/state handling in a `switch (state.type)` and reserve pre-switch logic for unconditional worker startup only.
 
 More: [Workers](./docs/guides/workers.md)
 
