@@ -93,16 +93,14 @@ export const createProfileWorkflow = (
   initialState: () => ({ type: 'loading' }),
 
   render: (_props, state, ctx) => {
-    if (state.type === 'loading') {
-      ctx.runWorker(workersProvider.loadProfileWorker, 'profile-load', (result) => () => ({
-        state: result.ok
-          ? { type: 'loaded', name: result.name }
-          : { type: 'error', message: result.message },
-      }));
-    }
-
     switch (state.type) {
       case 'loading':
+        ctx.runWorker(workersProvider.loadProfileWorker, 'profile-load', (result) => () => ({
+          state: result.ok
+            ? { type: 'loaded', name: result.name }
+            : { type: 'error', message: result.message },
+        }));
+
         return {
           type: 'loading',
           close: () => {
@@ -270,12 +268,18 @@ More: [Overview](./docs/guides/overview.md), [React Integration](./docs/guides/r
 Workers run async tasks and are started/stopped by render calls:
 
 ```typescript
-if (state.type === 'loading') {
-  ctx.runWorker(loadProfileWorker, 'profile-load', (result) => () => ({
-    state: result.ok
-      ? { type: 'loaded', name: result.name }
-      : { type: 'error', message: result.message },
-  }));
+switch (state.type) {
+  case 'loading':
+    ctx.runWorker(loadProfileWorker, 'profile-load', (result) => () => ({
+      state: result.ok
+        ? { type: 'loaded', name: result.name }
+        : { type: 'error', message: result.message },
+    }));
+    return { type: 'loading' };
+  case 'loaded':
+    return { type: 'loaded', name: state.name };
+  case 'error':
+    return { type: 'error', message: state.message };
 }
 ```
 
