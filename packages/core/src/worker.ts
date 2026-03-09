@@ -274,11 +274,22 @@ export function debounceWorker<T>(key: string, worker: Worker<T>, delayMs: numbe
     }
 
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, delayMs);
-      signal.addEventListener('abort', () => {
-        clearTimeout(timeout);
+      let settled = false;
+      let onAbort: (() => void) | null = null;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        if (onAbort !== null) {
+          signal.removeEventListener('abort', onAbort);
+        }
         resolve();
-      });
+      };
+      const timeout = setTimeout(finish, delayMs);
+      onAbort = (): void => {
+        clearTimeout(timeout);
+        finish();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
     });
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition

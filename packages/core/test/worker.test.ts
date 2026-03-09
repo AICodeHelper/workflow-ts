@@ -59,6 +59,66 @@ function createAbortTrackingWorker(key: string): {
   };
 }
 
+function createInstrumentedAbortController(): {
+  signal: AbortSignal;
+  abort: () => void;
+  getAbortListenerCount: () => number;
+  addAbortListenerSpy: ReturnType<typeof vi.fn>;
+  removeAbortListenerSpy: ReturnType<typeof vi.fn>;
+} {
+  let aborted = false;
+  const abortListeners = new Set<EventListener>();
+
+  const addAbortListenerSpy = vi.fn(
+    (
+      type: string,
+      listener: unknown,
+      _options?: unknown,
+    ): void => {
+      if (type !== 'abort') return;
+      if (typeof listener !== 'function') return;
+      abortListeners.add(listener);
+    },
+  );
+
+  const removeAbortListenerSpy = vi.fn(
+    (
+      type: string,
+      listener: unknown,
+      _options?: unknown,
+    ): void => {
+      if (type !== 'abort') return;
+      if (typeof listener !== 'function') return;
+      abortListeners.delete(listener);
+    },
+  );
+
+  const signal = {
+    get aborted(): boolean {
+      return aborted;
+    },
+    addEventListener: addAbortListenerSpy,
+    removeEventListener: removeAbortListenerSpy,
+  } as unknown as AbortSignal;
+
+  const abort = (): void => {
+    if (aborted) return;
+    aborted = true;
+    const listeners = Array.from(abortListeners);
+    abortListeners.clear();
+    const event = new Event('abort');
+    listeners.forEach((listener) => listener(event));
+  };
+
+  return {
+    signal,
+    abort,
+    getAbortListenerCount: () => abortListeners.size,
+    addAbortListenerSpy,
+    removeAbortListenerSpy,
+  };
+}
+
 // ============================================================
 // WorkerManager Tests
 // ============================================================
@@ -608,13 +668,46 @@ describe('AbortSignal integration', () => {
   });
 
   it('should abort debounced worker before starting inner worker', async () => {
-    const inner = createWorker('inner', async () => 'done');
+    let innerRuns = 0;
+    const inner = createWorker('inner', async () => {
+      innerRuns += 1;
+      return 'done';
+    });
     const debounced = debounceWorker('debounced', inner, 50);
 
-    const controller = new AbortController();
+    const controller = createInstrumentedAbortController();
     const promise = debounced.run(controller.signal);
     controller.abort();
 
     await expect(promise).rejects.toThrow('Aborted');
+    expect(innerRuns).toBe(0);
+    expect(controller.addAbortListenerSpy).toHaveBeenCalledTimes(1);
+    expect(controller.removeAbortListenerSpy).toHaveBeenCalledTimes(1);
+    expect(controller.removeAbortListenerSpy).toHaveBeenCalledWith(
+      'abort',
+      controller.addAbortListenerSpy.mock.calls[0]?.[1],
+    );
+    expect(controller.getAbortListenerCount()).toBe(0);
+  });
+
+  it('should remove debounce abort listener after delay when worker is not aborted', async () => {
+    let innerRuns = 0;
+    const inner = createWorker('inner', async () => {
+      innerRuns += 1;
+      return 'done';
+    });
+    const debounced = debounceWorker('debounced', inner, 1);
+    const controller = createInstrumentedAbortController();
+
+    await expect(debounced.run(controller.signal)).resolves.toBe('done');
+
+    expect(innerRuns).toBe(1);
+    expect(controller.addAbortListenerSpy).toHaveBeenCalledTimes(1);
+    expect(controller.removeAbortListenerSpy).toHaveBeenCalledTimes(1);
+    expect(controller.removeAbortListenerSpy).toHaveBeenCalledWith(
+      'abort',
+      controller.addAbortListenerSpy.mock.calls[0]?.[1],
+    );
+    expect(controller.getAbortListenerCount()).toBe(0);
   });
 });
