@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Dependabot reviewers to replace the legacy `openclaw` account with `AICodeHelper`.
 - Updated Dependabot reviewers and `CODEOWNERS` to `BenedictP` as the canonical reviewer/owner.
 - Added a CI `Release Readiness` job that validates release-version alignment and dry-run publishes for both packages, so dependency/action update PRs catch release-path breakage before merge.
+- Fixed `release-readiness` CI job to use Node.js 20 and `pnpm/action-setup@v3` (version 9), matching all other CI jobs.
 - Added a dedicated Next.js SSR/hydration guide and linked it from the docs index, React docs, package README, and root README to document deterministic first-render and worker caveats.
 - Added short inline comments to the README quick-start snippets while keeping them synced with the runnable `examples/readme-profile` sources.
 - Added README badges for CI status, per-package bundle size (`@workflow-ts/core`, `@workflow-ts/react`), and per-package npm versions.
